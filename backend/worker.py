@@ -131,8 +131,54 @@ def get_team_color(team_name):
 async def run_replay(year: int, round_name: str):
     print(f"Stahuji data: {year} – {round_name}...")
     session = fastf1.get_session(year, round_name, 'R')
-    session.load(telemetry=True, weather=True, messages=False)
+    session.load(telemetry=True, weather=True, laps=True, messages=False)
     print("Data načtena. Připravuji vysílání...")
+
+    results = session.results
+    drivers_abbr = list(results['Abbreviation']) if not results.empty else []
+
+    # ──── Obrys trati z pos_data ────
+    try:
+        # Použijeme pozice z prvního kola pro získání geometrie trati
+        lap = session.laps.pick_fastest()
+        pos_data = lap.get_pos_data()
+        
+        if not pos_data.empty:
+            all_x = pos_data['X'].tolist()
+            all_y = pos_data['Y'].tolist()
+            
+            x_min, x_max = min(all_x), max(all_x)
+            y_min, y_max = min(all_y), max(all_y)
+            x_range = max(x_max - x_min, 1)
+            y_range = max(y_max - y_min, 1)
+            scale = 900 / max(x_range, y_range) # Trochu menší aby byl okraj
+
+            # Vzorkujeme body
+            outline_points = []
+            step_size = max(1, len(pos_data) // 500)
+            for i in range(0, len(pos_data), step_size):
+                row = pos_data.iloc[i]
+                outline_points.append({
+                    "x": round((float(row['X']) - x_min) * scale + 50, 2),
+                    "y": round((float(row['Y']) - y_min) * scale + 50, 2)
+                })
+
+            global pos_norm_bounds
+            pos_norm_bounds = {"x_min": x_min, "y_min": y_min, "scale": scale}
+
+            supabase.table("track_outline").upsert({
+                "id": 1,
+                "points": outline_points,
+                "circuit_name": f"{year} {round_name}"
+            }).execute()
+            print(f"Obrys tratě uložen ({len(outline_points)} bodů).")
+        else:
+            print("Žádná poziční data pro obrys.")
+            pos_norm_bounds = None
+    except Exception as e:
+        print(f"Track outline chyba: {e}")
+        pos_norm_bounds = None
+
 
     results = session.results
     drivers_abbr = list(results['Abbreviation']) if not results.empty else []
@@ -210,7 +256,7 @@ async def run_replay(year: int, round_name: str):
                 continue
             r = row.iloc[0]
             driver_num = str(results[results['Abbreviation'] == abbr]['DriverNumber'].iloc[0])
-            payloads.append({
+            payload = {
                 "driver_number": driver_num,
                 "session_time": float(r['SessionTime'].total_seconds()),
                 "speed": int(r['Speed']) if not pd.isna(r['Speed']) else 0,
@@ -218,7 +264,13 @@ async def run_replay(year: int, round_name: str):
                 "gear": int(r['nGear']) if not pd.isna(r['nGear']) else 0,
                 "throttle": int(r['Throttle']) if not pd.isna(r['Throttle']) else 0,
                 "brake": int(r['Brake']) if not pd.isna(r['Brake']) else 0,
-            })
+            }
+            # Přidat X/Y pozici pokud máme normalizaci
+            if pos_norm_bounds and 'X' in r and 'Y' in r and pd.notna(r.get('X')) and pd.notna(r.get('Y')):
+                bounds = pos_norm_bounds
+                payload["x_pos"] = round((float(r['X']) - bounds['x_min']) * bounds['scale'] + 25, 2)
+                payload["y_pos"] = round((float(r['Y']) - bounds['y_min']) * bounds['scale'] + 25, 2)
+            payloads.append(payload)
 
         if payloads:
             try:

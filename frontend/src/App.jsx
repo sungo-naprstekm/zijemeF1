@@ -4,6 +4,7 @@ import { SessionStatus } from './components/SessionStatus';
 import { Leaderboard } from './components/Leaderboard';
 import { TelemetryDashboard } from './components/TelemetryDashboard';
 import { RacePicker } from './components/RacePicker';
+import TrackMap from './components/TrackMap';
 
 function App() {
   const initSupabase = useF1Store((state) => state.initSupabase);
@@ -45,6 +46,7 @@ function App() {
       {/* Hlavní rozložení */}
       <main style={styles.mainGrid}>
         <aside style={styles.leftColumn}>
+          <TrackMap />
           <Leaderboard />
         </aside>
         <section style={styles.centerArea}>

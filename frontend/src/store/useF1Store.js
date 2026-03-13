@@ -11,18 +11,21 @@ export const useF1Store = create((set, get) => ({
   },
   leaderboard: [],
   telemetry: {},
+  positions: {}, // { driver_number: { x, y } }
+  trackOutline: null, // { points: [{x, y}], circuit_name: string }
   isLoading: false,
-  currentSession: { year: 2023, round: 'Monza' },
+  currentSession: { year: 2024, round: 'British Grand Prix' },
 
   // Vymazání lokálního stavu při přepnutí závodu
   resetForNewSession: () => {
     set({
       leaderboard: [],
       telemetry: {},
+      positions: {},
       isLoading: true,
       sessionState: { flag: 'Loading...', remaining_time: '', remaining_laps: 0, track_temp: 0, air_temp: 0 }
     });
-    setTimeout(() => set({ isLoading: false }), 45000);
+    setTimeout(() => set({ isLoading: false }), 15000); // Sníženo na 15s
   },
 
   setSession: (year, round) => {
@@ -36,6 +39,9 @@ export const useF1Store = create((set, get) => ({
 
     const { data: lbData } = await supabase.from('leaderboard').select('*').order('position', { ascending: true });
     if (lbData) set({ leaderboard: lbData });
+
+    const { data: trackData } = await supabase.from('track_outline').select('*').limit(1).single();
+    if (trackData) set({ trackOutline: trackData });
 
     const channels = supabase.channel('custom-all-channel')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'session_state' },
@@ -66,10 +72,22 @@ export const useF1Store = create((set, get) => ({
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'telemetry' },
         (payload) => {
           const t = payload.new;
-          set((state) => ({
-            telemetry: { ...state.telemetry, [t.driver_number]: t },
-            isLoading: false
-          }));
+          set((state) => {
+            const newPosts = { ...state.positions };
+            if (t.x_pos !== null && t.y_pos !== null) {
+              newPosts[t.driver_number] = { x: t.x_pos, y: t.y_pos };
+            }
+            return {
+              telemetry: { ...state.telemetry, [t.driver_number]: t },
+              positions: newPosts,
+              isLoading: false
+            };
+          });
+        }
+      )
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'track_outline' },
+        (payload) => {
+          if (payload.new) set({ trackOutline: payload.new });
         }
       )
       .subscribe();
