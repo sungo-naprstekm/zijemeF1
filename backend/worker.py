@@ -177,5 +177,15 @@ async def run_replay():
         sleep_time = max(0.0, 1.0 - elapsed)
         time.sleep(sleep_time)
 
+async def main_loop():
+    while True:
+        try:
+            await run_replay()
+        except Exception as e:
+            print(f"Kritická chyba v replay smyčce, restartuji za 10s: {e}")
+        
+        print("Replay skončil nebo spadl. Čekám 10s přes novým puštěním...")
+        await asyncio.sleep(10)
+
 if __name__ == "__main__":
-    asyncio.run(run_replay())
+    asyncio.run(main_loop())
