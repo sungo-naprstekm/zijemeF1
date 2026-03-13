@@ -14,10 +14,20 @@ export const useF1Store = create((set, get) => ({
   isLoading: false,
   currentSession: { year: 2023, round: 'Monza' },
 
-  setSession: async (year, round) => {
-    set({ isLoading: true, currentSession: { year, round } });
-    // isLoading se resetuje po 30s nebo při přijetí nových dat
-    setTimeout(() => set({ isLoading: false }), 30000);
+  // Vymazání lokálního stavu při přepnutí závodu
+  resetForNewSession: () => {
+    set({
+      leaderboard: [],
+      telemetry: {},
+      isLoading: true,
+      sessionState: { flag: 'Loading...', remaining_time: '', remaining_laps: 0, track_temp: 0, air_temp: 0 }
+    });
+    setTimeout(() => set({ isLoading: false }), 45000);
+  },
+
+  setSession: (year, round) => {
+    set({ currentSession: { year, round } });
+    get().resetForNewSession();
   },
 
   initSupabase: async () => {
@@ -29,10 +39,20 @@ export const useF1Store = create((set, get) => ({
 
     const channels = supabase.channel('custom-all-channel')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'session_state' },
-        (payload) => set({ sessionState: payload.new, isLoading: false })
+        (payload) => {
+          if (payload.eventType === 'DELETE') return;
+          set({ sessionState: payload.new, isLoading: false });
+        }
       )
       .on('postgres_changes', { event: '*', schema: 'public', table: 'leaderboard' },
         (payload) => {
+          if (payload.eventType === 'DELETE') {
+            // Smažeme jezdce z lokálního stavu
+            set((state) => ({
+              leaderboard: state.leaderboard.filter(l => l.driver_number !== payload.old?.driver_number)
+            }));
+            return;
+          }
           set((state) => {
             const exists = state.leaderboard.find(l => l.driver_number === payload.new.driver_number);
             const newList = exists
