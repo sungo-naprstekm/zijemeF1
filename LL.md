@@ -27,3 +27,10 @@
 - **Příčina:** Vercel naklonoval celý root repozitáře `zijemeF1/`, ale nenalezl tam `package.json` (jelikož ten leží až ve složce `frontend/`). Z tohoto důvodu přeskočil krok instalace NPM balíčků a zkusil rovnou spustit defaultní build, který samozřejmě selhal na chybějící binárce `vite`.
 - **Odstranění:** Je nutno jít do Project Settings na Vercelu a nastavit **"Root Directory"** na hodnotu `frontend`.
 - **Ponaučení pro příště:** Pokud aplikace neleží přímo v root složce repozitáře, musím uživatele VŽDY dopředu důrazně varovat, ať na Vercelu nezapomene vyplnit `Root Directory`, jinak deployment zhavaruje ihned na začátku.
+
+## Chyba - Render.com missing Environment Variables
+- **Datum:** 13. března 2026
+- **Symptom:** `Zadej SUPABASE_URL a SUPABASE_KEY do .env souboru!` v logách Renderu a pád aplikace (exit status 1).
+- **Příčina:** Skript vyžaduje `SUPABASE_URL` a `SUPABASE_KEY`. Tyto proměnné nebyly nastaveny v ovládacím panelu Renderu.
+- **Odstranění:** Manuální přidání proměnných v záložce **Environment** u dané služby na Render.com.
+- **Ponaučení pro příště:** Při nasazování backendu do cloudu musím uživateli dát naprosto explicitní seznam proměnných, které musí do UI naklikat, a vysvětlit mu, že cloud "nevidí" lokální `.env` soubor.

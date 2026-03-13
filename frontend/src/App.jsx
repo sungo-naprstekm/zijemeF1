@@ -10,6 +10,16 @@ function App() {
   useEffect(() => {
     // Navážeme WebSocket spojení se Supabase při prvním načtení aplikace
     const cleanup = initSupabase();
+
+    // Automatické probuzení Render backendu (cesta 1 - Free Tier)
+    const renderUrl = import.meta.env.VITE_RENDER_URL;
+    if (renderUrl) {
+      console.log('Budím Render backend...');
+      fetch(renderUrl).catch(() => {
+        // Ignorujeme chybu (CORS atd.), hlavně že požadavek odešel a Render se probudí
+      });
+    }
+
     return () => {
       cleanup.then(unsub => unsub && unsub());
     };
