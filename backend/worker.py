@@ -2,11 +2,31 @@ import os
 import time
 import json
 import asyncio
+import threading
+from http.server import BaseHTTPRequestHandler, HTTPServer
 from dotenv import load_dotenv
 import pandas as pd
 import fastf1
 from fastf1 import plotting
 from supabase import create_client, Client
+
+# Health check handler pro Render.com
+class HealthHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.send_header('Content-type', 'text/html')
+        self.end_headers()
+        self.wfile.write(b"ALIVE")
+
+    def log_message(self, format, *args):
+        return # Ticho v logu pro health checky
+
+def run_health_server():
+    port = int(os.environ.get('PORT', 8080))
+    server = HTTPServer(('0.0.0.0', port), HealthHandler)
+    print(f"Health check server běží na portu {port}")
+    server.serve_forever()
+
 
 # Příprava
 load_dotenv()
@@ -188,4 +208,8 @@ async def main_loop():
         await asyncio.sleep(10)
 
 if __name__ == "__main__":
+    # Spustíme health check server v jiném vlákně, aby Render.com byl spokojený
+    threading.Thread(target=run_health_server, daemon=True).start()
+    
+    # Spustíme hlavní replay smyčku
     asyncio.run(main_loop())
