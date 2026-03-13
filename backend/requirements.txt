@@ -1,0 +1,4 @@
+fastf1>=3.3.0
+pandas>=2.0.0
+supabase>=2.3.0
+python-dotenv
