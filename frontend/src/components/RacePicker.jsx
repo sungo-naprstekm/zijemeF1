@@ -6,6 +6,8 @@ export function RacePicker() {
   const [year, setYear] = useState(2023);
   const [races, setRaces] = useState([]);
   const [selectedRound, setSelectedRound] = useState('');
+  const [startLap, setStartLap] = useState(1);
+  const [playbackState, setPlaybackState] = useState('paused');
   const [loading, setLoading] = useState(false);
   const [loadingRaces, setLoadingRaces] = useState(false);
   const [status, setStatus] = useState('');
@@ -33,19 +35,36 @@ export function RacePicker() {
   const handleApply = async () => {
     if (!renderUrl || !selectedRound) return;
     setLoading(true);
-    setStatus('Spouštím nový replay...');
+    setStatus('Načítám a připravuji replay...');
     try {
       await fetch(`${renderUrl}/set-session`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ year, round: selectedRound })
+        body: JSON.stringify({ year, round: selectedRound, start_lap: startLap })
       });
-      setStatus(`✓ Replay: ${year} – ${selectedRound}`);
+      setPlaybackState('paused');
+      setStatus(`✓ Replay připraven: ${year} – ${selectedRound} (Pauza)`);
     } catch {
       setStatus('⚠ Chyba při komunikaci s backendem');
     } finally {
       setLoading(false);
       setTimeout(() => setStatus(''), 6000);
+    }
+  };
+
+  const handlePlayback = async (action) => {
+    if (!renderUrl) return;
+    try {
+      await fetch(`${renderUrl}/playback`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action })
+      });
+      setPlaybackState(action);
+      setStatus(action === 'play' ? '▶ Přehrávání spuštěno' : '⏸ Pozastaveno');
+      setTimeout(() => setStatus(''), 3000);
+    } catch {
+      setStatus('⚠ Chyba při komunikaci s backendem');
     }
   };
 
@@ -75,7 +94,19 @@ export function RacePicker() {
         }
       </select>
 
-      {/* Tlačítko */}
+      {/* Od kola */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+        <label style={{ color: '#e2e8f0', fontSize: '12px' }}>Kolo:</label>
+        <input
+          type="number"
+          min="1"
+          value={startLap}
+          onChange={e => setStartLap(Number(e.target.value))}
+          style={{ ...styles.select, width: '60px' }}
+        />
+      </div>
+
+      {/* Tlačítko Načíst */}
       <button
         onClick={handleApply}
         disabled={loading || !selectedRound}
@@ -84,8 +115,34 @@ export function RacePicker() {
           opacity: (loading || !selectedRound) ? 0.5 : 1
         }}
       >
-        {loading ? '⏳' : '▶ SPUSTIT'}
+        {loading ? '⏳' : '📥 NAČÍST'}
       </button>
+
+      {/* Ovládání přehrávání */}
+      <div style={{ display: 'flex', gap: '6px', marginLeft: 'auto' }}>
+        <button
+          onClick={() => handlePlayback('play')}
+          disabled={playbackState === 'play'}
+          style={{
+            ...styles.button,
+            background: playbackState === 'play' ? '#22c55e' : 'linear-gradient(135deg, #22c55e, #16a34a)',
+            opacity: playbackState === 'play' ? 0.3 : 1
+          }}
+        >
+          ▶ PLAY
+        </button>
+        <button
+          onClick={() => handlePlayback('pause')}
+          disabled={playbackState === 'pause'}
+          style={{
+            ...styles.button,
+            background: playbackState === 'pause' ? '#ef4444' : 'linear-gradient(135deg, #ef4444, #dc2626)',
+            opacity: playbackState === 'pause' ? 0.3 : 1
+          }}
+        >
+          ⏸ PAUSE
+        </button>
+      </div>
 
       {/* Status */}
       {status && <span style={styles.status}>{status}</span>}

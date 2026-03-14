@@ -16,7 +16,12 @@ from supabase import create_client, Client
 # ──────────────────────────────────────────────
 # Globální stav (sdílený mezi HTTP serverem a asyncio smyčkou)
 # ──────────────────────────────────────────────
-current_config = {"year": 2023, "round": "Monza"}
+current_config = {
+    "year": 2023, 
+    "round": "Monza",
+    "start_lap": 1,
+    "playback_state": "paused"
+}
 restart_event = threading.Event()   # HTTP handler nastaví → main_loop restartuje replay
 
 # ──────────────────────────────────────────────
@@ -73,11 +78,28 @@ class ApiHandler(BaseHTTPRequestHandler):
             body = json.loads(self.rfile.read(length) or b'{}')
             year = int(body.get('year', current_config['year']))
             round_name = body.get('round', current_config['round'])
+            start_lap = int(body.get('start_lap', 1))
+
             current_config['year'] = year
             current_config['round'] = round_name
+            current_config['start_lap'] = start_lap
+            current_config['playback_state'] = "paused"
+            
             restart_event.set()   # Signál pro main_loop
-            print(f"[API] Nová konfigurace: {year} – {round_name}")
+            print(f"[API] Nová konfigurace: {year} – {round_name} (Od kola: {start_lap})")
             self._send_json(200, {"status": "ok", "config": current_config})
+        
+        elif self.path == '/playback':
+            length = int(self.headers.get('Content-Length', 0))
+            body = json.loads(self.rfile.read(length) or b'{}')
+            action = body.get('action')
+            if action in ['play', 'pause']:
+                current_config['playback_state'] = action
+                print(f"[API] Playback state: {action}")
+                self._send_json(200, {"status": "ok", "state": action})
+            else:
+                self._send_json(400, {"error": "Invalid action"})
+                
         else:
             self._send_json(404, {"error": "Not found"})
 
@@ -358,10 +380,19 @@ async def run_replay(year: int, round_name: str):
     # ══════════════════════════════════════════════
     # HLAVNÍ SMYČKA: kolo po kole
     # ══════════════════════════════════════════════
-    for current_lap in range(1, total_laps + 1):
+    start_lap = current_config.get("start_lap", 1)
+    
+    for current_lap in range(start_lap, total_laps + 1):
         if restart_event.is_set():
             print("Zastaven replay – nová konfigurace požadována.")
             return
+
+        # Zastavení dokud není "playing"
+        while current_config.get("playback_state") == "paused":
+            if restart_event.is_set():
+                print("Zastaven replay během pauzy.")
+                return
+            time.sleep(0.5)
 
         lap_start = time.time()
 
