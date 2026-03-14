@@ -3,6 +3,8 @@ import time
 import json
 import asyncio
 import threading
+import gc
+import psutil
 from urllib.parse import urlparse, parse_qs
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from datetime import date
@@ -12,6 +14,14 @@ import numpy as np
 import fastf1
 from fastf1 import plotting
 from supabase import create_client, Client
+
+# ──────────────────────────────────────────────
+# Memory helper
+# ──────────────────────────────────────────────
+def print_memory_usage(tag=""):
+    process = psutil.Process(os.getpid())
+    mem = process.memory_info().rss / (1024 * 1024)
+    print(f"[MEMORY] {tag} - RAM: {mem:.2f} MB")
 
 # ──────────────────────────────────────────────
 # Globální stav (sdílený mezi HTTP serverem a asyncio smyčkou)
@@ -203,11 +213,18 @@ def parse_flag_from_messages(race_control_msgs, current_lap):
 # Replay engine
 # ──────────────────────────────────────────────
 async def run_replay(year: int, round_name: str):
+    print_memory_usage("Start run_replay")
+    
+    # Explicit garbage collection before loading new massive data
+    gc.collect()
+    print_memory_usage("Po uvolnění paměti pro nový replay")
+
     print(f"Stahuji data: {year} – {round_name}...")
     session = fastf1.get_session(year, round_name, 'R')
     # messages=True pro vlajky (RE-3)
     session.load(telemetry=True, weather=True, laps=True, messages=True)
     print("Data načtena. Připravuji vysílání...")
+    print_memory_usage("Po načtení dat do FastF1 Session")
 
     results = session.results
     if results.empty:
@@ -385,14 +402,17 @@ async def run_replay(year: int, round_name: str):
     for current_lap in range(start_lap, total_laps + 1):
         if restart_event.is_set():
             print("Zastaven replay – nová konfigurace požadována.")
-            return
+            break
 
         # Zastavení dokud není "playing"
         while current_config.get("playback_state") == "paused":
             if restart_event.is_set():
                 print("Zastaven replay během pauzy.")
-                return
+                break
             time.sleep(0.5)
+
+        if restart_event.is_set():
+            break
 
         lap_start = time.time()
 
@@ -496,12 +516,12 @@ async def run_replay(year: int, round_name: str):
                     # --- CHYBĚJÍCÍ KONTROLA PAUZY ---
                     while current_config.get("playback_state") == "paused":
                         if restart_event.is_set():
-                            return
+                            break
                         time.sleep(0.1)
                     # --------------------------------
                     
                     if restart_event.is_set():
-                        return
+                        break
 
                     # Interpolovaný session time v rámci kola
                     frac = step_i / POSITION_STEPS_PER_LAP
@@ -585,10 +605,20 @@ async def run_replay(year: int, round_name: str):
             "id": 1,
             "flag": "Chequered",
             "remaining_laps": 0,
-            "track_temp": round(track_temp, 1),
-            "air_temp": round(air_temp, 1)
+            "track_temp": round(track_temp if 'track_temp' in locals() else 0, 1),
+            "air_temp": round(air_temp if 'air_temp' in locals() else 0, 1)
         }).execute()
         print(f"Replay dokončen: {year} {round_name}")
+
+    # ──── Explicitní uvolnění paměti (Garbage Collection & Deletion) ────
+    print_memory_usage("Před uvolňováním obřích dat")
+    # Smažeme obří slovníky explicitně
+    del driver_pos_data
+    del driver_telem_data
+    del all_laps
+    del session
+    gc.collect()
+    print_memory_usage("Po uvolnění obřích dat a session")
 
 
 # ──────────────────────────────────────────────
