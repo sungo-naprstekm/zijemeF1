@@ -173,6 +173,20 @@ def safe_timedelta_str(val):
         return f"{val:.3f}"
     return str(val)
 
+def format_lap_time(val):
+    """Naformátuje Timedelta na MM:SS.mmm nebo SS.mmm"""
+    if pd.isna(val) or not isinstance(val, pd.Timedelta):
+        return ""
+    total_seconds = val.total_seconds()
+    if total_seconds < 0:
+        return ""
+    minutes = int(total_seconds // 60)
+    seconds = total_seconds % 60
+    if minutes > 0:
+        return f"{minutes}:{seconds:06.3f}"
+    else:
+        return f"{seconds:.3f}"
+
 
 def parse_flag_from_messages(race_control_msgs, current_lap):
     """
@@ -399,6 +413,11 @@ async def run_replay(year: int, round_name: str):
     # ══════════════════════════════════════════════
     start_lap = current_config.get("start_lap", 1)
     
+    current_track_temp = initial_track_temp
+    current_air_temp = initial_air_temp
+    driver_fastest_lap = {}
+    driver_fastest_lap_secs = {}
+
     for current_lap in range(start_lap, total_laps + 1):
         if restart_event.is_set():
             print("Zastaven replay – nová konfigurace požadována.")
@@ -439,6 +458,24 @@ async def run_replay(year: int, round_name: str):
                 if pd.notna(pit_in) or pd.notna(pit_out):
                     is_in_pit = True
 
+                last_lap_td = lap_row.get('LapTime')
+                last_lap_str = format_lap_time(last_lap_td)
+                sector1 = safe_timedelta_str(lap_row.get('Sector1Time'))
+                sector2 = safe_timedelta_str(lap_row.get('Sector2Time'))
+                sector3 = safe_timedelta_str(lap_row.get('Sector3Time'))
+
+                is_pb = False
+                fastest_lap_str = driver_fastest_lap.get(driver_num, "")
+                if pd.notna(last_lap_td) and hasattr(last_lap_td, 'total_seconds'):
+                    lap_secs = last_lap_td.total_seconds()
+                    if lap_secs > 0:
+                        prev_best = driver_fastest_lap_secs.get(driver_num, 999999)
+                        if lap_secs <= prev_best: # Update if faster or equal
+                            driver_fastest_lap_secs[driver_num] = lap_secs
+                            fastest_lap_str = last_lap_str
+                            driver_fastest_lap[driver_num] = last_lap_str
+                            is_pb = True
+
                 lb_upserts.append({
                     "driver_number": driver_num,
                     "position": position,
@@ -448,7 +485,13 @@ async def run_replay(year: int, round_name: str):
                     "interval": interval,
                     "compound": compound,
                     "tyre_age": tyre_life,
-                    "in_pit": is_in_pit
+                    "in_pit": is_in_pit,
+                    "last_lap_time": last_lap_str,
+                    "fastest_lap_time": fastest_lap_str,
+                    "sector1": sector1,
+                    "sector2": sector2,
+                    "sector3": sector3,
+                    "is_personal_best": is_pb
                 })
 
             if lb_upserts:
@@ -462,8 +505,6 @@ async def run_replay(year: int, round_name: str):
         flag = parse_flag_from_messages(race_control_msgs, current_lap)
 
         # Teploty: nejbližší weather záznam k aktuálnímu kolu
-        track_temp = initial_track_temp
-        air_temp = initial_air_temp
         if weather_data is not None and not weather_data.empty:
             try:
                 # Vezmeme čas half-way přes kolo lídra pro lookup
@@ -476,8 +517,8 @@ async def run_replay(year: int, round_name: str):
                         time_diffs = (weather_data['Time'] - lap_session_time).abs()
                         nearest_idx = time_diffs.idxmin()
                         nearest_weather = weather_data.loc[nearest_idx]
-                        track_temp = float(nearest_weather.get('TrackTemp', track_temp))
-                        air_temp = float(nearest_weather.get('AirTemp', air_temp))
+                        current_track_temp = float(nearest_weather.get('TrackTemp', current_track_temp))
+                        current_air_temp = float(nearest_weather.get('AirTemp', current_air_temp))
             except Exception as e:
                 pass  # Fallback na poslední známé teploty
 
@@ -486,13 +527,13 @@ async def run_replay(year: int, round_name: str):
                 "id": 1,
                 "flag": flag,
                 "remaining_laps": remaining,
-                "track_temp": round(track_temp, 1),
-                "air_temp": round(air_temp, 1)
+                "track_temp": round(current_track_temp, 1),
+                "air_temp": round(current_air_temp, 1)
             }).execute()
         except Exception as e:
             print(f"  [Kolo {current_lap}] Session state chyba: {e}")
 
-        print(f"[Kolo {current_lap}/{total_laps}] Flag={flag}, Zbývá={remaining}, Trať={track_temp}°C, Jezdců={len(lap_data)}")
+        print(f"[Kolo {current_lap}/{total_laps}] Flag={flag}, Zbývá={remaining}, Trať={current_track_temp}°C, Jezdců={len(lap_data)}")
 
         # ──── RE-2: Streamování X/Y pozic pro VŠECHNY jezdce ────
         # Spočítáme session time range pro toto kolo
@@ -605,8 +646,8 @@ async def run_replay(year: int, round_name: str):
             "id": 1,
             "flag": "Chequered",
             "remaining_laps": 0,
-            "track_temp": round(track_temp if 'track_temp' in locals() else 0, 1),
-            "air_temp": round(air_temp if 'air_temp' in locals() else 0, 1)
+            "track_temp": round(current_track_temp if 'current_track_temp' in locals() else 0, 1),
+            "air_temp": round(current_air_temp if 'current_air_temp' in locals() else 0, 1)
         }).execute()
         print(f"Replay dokončen: {year} {round_name}")
 

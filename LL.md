@@ -41,3 +41,10 @@
 - **Příčina:** Hlavní smyčka v `worker.py` sice zohledňovala stav pauzy na začátku počítaného kola, ale nikoli uvnitř vnitřního cyklu `for step_i in range(POSITION_STEPS_PER_LAP):`.
 - **Odstranění:** Přidána `while current_config.get("playback_state") == "paused":` smyčka do začátku iterace kroků kola, vč. prevence deadlocku s `restart_event`.
 - **Ponaučení pro příště:** U vnořených smyček dbejte na to, aby reakce na změnu globálního stavu (Pause, Play) byla začleněna na dostatečně nízké úrovni granulity pro plynulý/okamžitý výsledek.
+
+## Chyba - Leaderboard VARCHAR(5) constraint
+- **Datum:** 14. března 2026
+- **Symptom:** Během upsertu updatovaných časů spadnul query `leaderboard UPSERT chyba: {'message': 'value too long for type character varying(5)' ... }`.
+- **Příčina:** Sloupce `broadcast_name` a `compound` byly definovány v Supabase tabulce jako `varchar(5)`. Nicméně FastF1 občas pošle plné slovo `INTERMEDIATE` nebo delší název. 
+- **Odstranění:** Proveden SQL update typů `ALTER COLUMN broadcast_name TYPE text`.
+- **Ponaučení pro příště:** Pro stringové hodnoty a jména generované plynoucími daty (speciálně z neznámých polí web scraping/API) použít pro jednoduchost a bezpečnost rovnou `text` místo striktně vynucovaných omezení `varchar(x)`.
