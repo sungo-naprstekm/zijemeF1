@@ -38,6 +38,8 @@ CREATE TABLE public.telemetry (
     gear int NOT NULL,
     throttle int NOT NULL,
     brake int NOT NULL,
+    x_pos numeric(10, 2),
+    y_pos numeric(10, 2),
     created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
