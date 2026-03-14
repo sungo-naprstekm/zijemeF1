@@ -493,11 +493,13 @@ async def run_replay(year: int, round_name: str):
             time_span = lap_end_time - lap_start_time
             if time_span.total_seconds() > 0:
                 for step_i in range(POSITION_STEPS_PER_LAP):
+                    # --- CHYBĚJÍCÍ KONTROLA PAUZY ---
                     while current_config.get("playback_state") == "paused":
                         if restart_event.is_set():
                             return
-                        time.sleep(0.1)  # Krátký sleep pro okamžitou reakci na play/restart
-                        
+                        time.sleep(0.1)
+                    # --------------------------------
+                    
                     if restart_event.is_set():
                         return
 
