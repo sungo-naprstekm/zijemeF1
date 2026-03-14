@@ -661,7 +661,8 @@ async def main_loop():
             print(f"Kritická chyba v replay: {e}")
 
         if not restart_event.is_set():
-            print("Replay skončil. Čekám 10s před novým puštěním...")
+            print("Replay skončil. Automaticky pauzuji před připravením nového startu...")
+            current_config["playback_state"] = "paused"
             for _ in range(100):   # 10s s kontrolou každých 100ms
                 if restart_event.is_set():
                     break

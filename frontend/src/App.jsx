@@ -16,10 +16,16 @@ function App() {
     // Automatické probuzení Render backendu (cesta 1 - Free Tier)
     const renderUrl = import.meta.env.VITE_RENDER_URL;
     if (renderUrl) {
-      console.log('Budím Render backend...');
+      console.log('Synchronizuji backend...');
       fetch(renderUrl).catch(() => {
         // Ignorujeme chybu (CORS atd.), hlavně že požadavek odešel a Render se probudí
       });
+      // Zajistíme, že se při startu aplikace přehrávání zastaví (čeká na akci uživatele)
+      fetch(`${renderUrl}/playback`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'pause' })
+      }).catch(() => {});
     }
 
     return () => {
