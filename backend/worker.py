@@ -188,6 +188,50 @@ def format_lap_time(val):
         return f"{seconds:.3f}"
 
 
+def prepare_leaderboard_data(lap_row, prev_best_secs=999999):
+    """
+    Vyextrahuje logiku pro přípravu dat leaderboardu, zejména výpočty gapů, 
+    intervalů a bezpečnou konverzi chybějících (NaN, NaT, atd.) hodnot z Pandas
+    do standardních Python typů (None, "", int, str), aby je přijal Supabase.
+    """
+    update_data = {}
+    
+    update_data['gap_to_leader'] = safe_timedelta_str(lap_row.get('GapToLeader'))
+    update_data['interval'] = safe_timedelta_str(lap_row.get('IntervalToPositionAhead'))
+    
+    compound = lap_row.get('Compound')
+    update_data['compound'] = str(compound) if pd.notna(compound) else 'S'
+    
+    tyre_life = lap_row.get('TyreLife')
+    update_data['tyre_age'] = int(tyre_life) if pd.notna(tyre_life) else 1
+    
+    pit_in = lap_row.get('PitInTime')
+    pit_out = lap_row.get('PitOutTime')
+    update_data['in_pit'] = True if (pd.notna(pit_in) or pd.notna(pit_out)) else False
+    
+    last_lap_td = lap_row.get('LapTime')
+    last_lap_str = format_lap_time(last_lap_td)
+    update_data['last_lap_time'] = last_lap_str
+    
+    update_data['sector1'] = safe_timedelta_str(lap_row.get('Sector1Time'))
+    update_data['sector2'] = safe_timedelta_str(lap_row.get('Sector2Time'))
+    update_data['sector3'] = safe_timedelta_str(lap_row.get('Sector3Time'))
+    
+    update_data['is_personal_best'] = False
+    update_data['new_best_lap_secs'] = prev_best_secs
+    update_data['fastest_lap_time'] = ""
+
+    if pd.notna(last_lap_td) and hasattr(last_lap_td, 'total_seconds'):
+        lap_secs = last_lap_td.total_seconds()
+        if lap_secs > 0:
+            if lap_secs <= prev_best_secs:
+                update_data['is_personal_best'] = True
+                update_data['new_best_lap_secs'] = lap_secs
+                update_data['fastest_lap_time'] = last_lap_str
+
+    return update_data
+
+
 def parse_flag_from_messages(race_control_msgs, current_lap):
     """
     Zjistí aktuální vlajku ze zpráv Race Control pro dané kolo.
@@ -558,31 +602,23 @@ async def run_replay(year: int, round_name: str):
                                 driver_state[driver_num]['last_lap_end_time'] = lap_row['LapEndTime']
                                 update_needed = True
                                 
-                                driver_state[driver_num]['gap_to_leader'] = safe_timedelta_str(lap_row.get('GapToLeader'))
-                                driver_state[driver_num]['interval'] = safe_timedelta_str(lap_row.get('IntervalToPositionAhead'))
-                                driver_state[driver_num]['compound'] = str(lap_row.get('Compound', 'S')) if pd.notna(lap_row.get('Compound')) else 'S'
-                                driver_state[driver_num]['tyre_age'] = int(lap_row.get('TyreLife', 1)) if pd.notna(lap_row.get('TyreLife')) else 1
-
-                                pit_in = lap_row.get('PitInTime')
-                                pit_out = lap_row.get('PitOutTime')
-                                driver_state[driver_num]['in_pit'] = True if (pd.notna(pit_in) or pd.notna(pit_out)) else False
-
-                                last_lap_td = lap_row.get('LapTime')
-                                last_lap_str = format_lap_time(last_lap_td)
-                                driver_state[driver_num]['last_lap_time'] = last_lap_str
-                                driver_state[driver_num]['sector1'] = safe_timedelta_str(lap_row.get('Sector1Time'))
-                                driver_state[driver_num]['sector2'] = safe_timedelta_str(lap_row.get('Sector2Time'))
-                                driver_state[driver_num]['sector3'] = safe_timedelta_str(lap_row.get('Sector3Time'))
+                                prev_best = driver_fastest_lap_secs.get(driver_num, 999999)
+                                update_data = prepare_leaderboard_data(lap_row, prev_best)
                                 
-                                driver_state[driver_num]['is_personal_best'] = False
-                                if pd.notna(last_lap_td) and hasattr(last_lap_td, 'total_seconds'):
-                                    lap_secs = last_lap_td.total_seconds()
-                                    if lap_secs > 0:
-                                        prev_best = driver_fastest_lap_secs.get(driver_num, 999999)
-                                        if lap_secs <= prev_best:
-                                            driver_fastest_lap_secs[driver_num] = lap_secs
-                                            driver_state[driver_num]['fastest_lap_time'] = last_lap_str
-                                            driver_state[driver_num]['is_personal_best'] = True
+                                driver_state[driver_num]['gap_to_leader'] = update_data['gap_to_leader']
+                                driver_state[driver_num]['interval'] = update_data['interval']
+                                driver_state[driver_num]['compound'] = update_data['compound']
+                                driver_state[driver_num]['tyre_age'] = update_data['tyre_age']
+                                driver_state[driver_num]['in_pit'] = update_data['in_pit']
+                                driver_state[driver_num]['last_lap_time'] = update_data['last_lap_time']
+                                driver_state[driver_num]['sector1'] = update_data['sector1']
+                                driver_state[driver_num]['sector2'] = update_data['sector2']
+                                driver_state[driver_num]['sector3'] = update_data['sector3']
+                                driver_state[driver_num]['is_personal_best'] = update_data['is_personal_best']
+                                
+                                if update_data['is_personal_best']:
+                                    driver_fastest_lap_secs[driver_num] = update_data['new_best_lap_secs']
+                                    driver_state[driver_num]['fastest_lap_time'] = update_data['fastest_lap_time']
 
                     if update_needed:
                         def sort_key(st):
