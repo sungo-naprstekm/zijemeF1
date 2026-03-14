@@ -399,14 +399,11 @@ async def run_replay(year: int, round_name: str):
     if pd.isna(median_lap_secs) or median_lap_secs <= 0:
         median_lap_secs = 90.0  # fallback
     # Budeme simulovat každé kolo se sub-kroky (position stream uvnitř kola)
-    POSITION_STEPS_PER_LAP = 30   # 30 pozičních updateů za kolo
-    step_interval = median_lap_secs / POSITION_STEPS_PER_LAP  # reálný čas jednoho kroku
+    # Pro LIVE playback (1:1) nastavíme fixní rychlost (např. 2 updaty za vteřinu)
+    STEPS_PER_SECOND = 2.0
+    sim_step_sleep = 1.0 / STEPS_PER_SECOND
 
-    # Minimální čas kola pro simulaci (aby to nebylo příliš pomalé)
-    SIM_LAP_DURATION = 5.0  # sekund reálného času na kolo simulace
-    sim_step_sleep = SIM_LAP_DURATION / POSITION_STEPS_PER_LAP
-
-    print(f"Začíná LIVE STREAM Replay: {year} {round_name} ({total_laps} kol, ~{SIM_LAP_DURATION}s/kolo)...")
+    print(f"Začíná LIVE STREAM Replay: {year} {round_name} ({total_laps} kol, 1:1 playback, {STEPS_PER_SECOND} fps)...")
 
     # ══════════════════════════════════════════════
     # HLAVNÍ SMYČKA: kolo po kole
@@ -552,8 +549,10 @@ async def run_replay(year: int, round_name: str):
 
         if lap_start_time is not None and lap_end_time is not None:
             time_span = lap_end_time - lap_start_time
-            if time_span.total_seconds() > 0:
-                for step_i in range(POSITION_STEPS_PER_LAP):
+            lap_seconds = time_span.total_seconds()
+            if lap_seconds > 0:
+                current_lap_steps = int(lap_seconds * STEPS_PER_SECOND)
+                for step_i in range(current_lap_steps):
                     # --- CHYBĚJÍCÍ KONTROLA PAUZY ---
                     while current_config.get("playback_state") == "paused":
                         if restart_event.is_set():
@@ -565,7 +564,7 @@ async def run_replay(year: int, round_name: str):
                         break
 
                     # Interpolovaný session time v rámci kola
-                    frac = step_i / POSITION_STEPS_PER_LAP
+                    frac = step_i / current_lap_steps if current_lap_steps > 0 else 0
                     current_session_time = lap_start_time + frac * time_span
                     current_secs = current_session_time.total_seconds()
 
