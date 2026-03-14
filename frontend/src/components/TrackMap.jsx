@@ -23,21 +23,28 @@ const TrackMap = () => {
 
   return (
     <div className="track-map-container">
-      <div className="track-map-header">
-        <h3>{trackOutline.circuit_name || 'Mapa trati'}</h3>
-      </div>
       <div className="track-map-svg-wrapper">
         <svg viewBox="0 0 1000 1000" preserveAspectRatio="xMidYMid meet" className="track-svg">
           {/* Obrys trati */}
           {svgPath && (
-            <path
-              d={svgPath}
-              className="track-outline-path"
-              fill="none"
-              stroke="rgba(255, 255, 255, 0.2)"
-              strokeWidth="15"
-              strokeLinejoin="round"
-            />
+            <g>
+              <path
+                d={svgPath}
+                className="track-outline-path"
+                fill="none"
+                stroke="url(#trackGradient)"
+                strokeWidth="12"
+                strokeLinejoin="round"
+                strokeLinecap="round"
+              />
+              
+              <defs>
+                <linearGradient id="trackGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stopColor="rgba(255, 255, 255, 0.4)" />
+                  <stop offset="100%" stopColor="rgba(255, 255, 255, 0.1)" />
+                </linearGradient>
+              </defs>
+            </g>
           )}
 
           {/* Body jezdců */}
@@ -77,23 +84,17 @@ const TrackMap = () => {
 
       <style jsx>{`
         .track-map-container {
-          background: rgba(10, 10, 15, 0.8);
-          border: 1px solid rgba(0, 243, 255, 0.3);
-          border-radius: 12px;
-          padding: 15px;
-          margin-bottom: 20px;
-          box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
-          position: relative;
-          overflow: hidden;
+          width: 100%;
+          height: 100%;
+          position: absolute;
+          inset: 0;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          background: radial-gradient(circle at center, rgba(15, 23, 42, 0.4) 0%, var(--color-bg) 100%);
         }
 
-        .track-map-header h3 {
-          margin: 0 0 10px 0;
-          font-size: 0.9rem;
-          color: #00f3ff;
-          text-transform: uppercase;
-          letter-spacing: 1px;
-        }
+
 
         .track-map-svg-wrapper {
           width: 100%;
@@ -106,11 +107,12 @@ const TrackMap = () => {
         .track-svg {
           width: 100%;
           height: 100%;
-          filter: drop-shadow(0 0 5px rgba(0, 243, 255, 0.2));
+          max-width: 90vh; /* Keep it constrained mostly by height to stay centered */
+          max-height: 90vh;
         }
 
         .track-outline-path {
-          filter: drop-shadow(0 0 2px rgba(255, 255, 255, 0.1));
+          filter: drop-shadow(0 0 8px rgba(255, 255, 255, 0.3)) drop-shadow(0 0 24px rgba(14, 165, 233, 0.2));
         }
 
         .driver-dot {

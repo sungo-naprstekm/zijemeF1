@@ -36,54 +36,69 @@ function App() {
         </div>
       )}
 
-      {/* Horní lišta */}
-      <nav style={styles.topNav}>
-        <SessionStatus />
-        <RacePicker />
-      </nav>
+      <div style={styles.mapLayer}>
+        <TrackMap />
+      </div>
 
-      {/* Hlavní rozložení */}
-      <main style={styles.mainGrid}>
-        <aside style={styles.leftColumn}>
-          <TrackMap />
+      <div style={styles.uiLayer}>
+        <div style={styles.topNavContainer}>
+          <SessionStatus />
+          <RacePicker />
+        </div>
+
+        <div style={styles.leaderboardContainer}>
           <Leaderboard />
-        </aside>
-      </main>
+        </div>
+      </div>
     </div>
   )
 }
 
 const styles = {
   appContainer: {
-    display: 'flex',
-    flexDirection: 'column',
+    position: 'relative',
     height: '100vh',
     width: '100vw',
-    padding: '24px',
-    gap: '24px',
-    boxSizing: 'border-box',
-    backgroundImage: 'radial-gradient(circle at top right, #0f172a, #000000 70%)'
-  },
-  topNav: {
-    height: 'auto',
-    minHeight: '80px',
-    flexShrink: 0,
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '12px',
-  },
-  mainGrid: {
-    display: 'flex',
-    flex: 1,
-    gap: '24px',
     overflow: 'hidden',
+    backgroundColor: 'var(--color-bg)',
+    fontFamily: 'var(--font-sans)',
   },
-  leftColumn: {
-    width: '350px',
-    flexShrink: 0,
+  mapLayer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 1,
+  },
+  uiLayer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 10,
+    pointerEvents: 'none', // Let clicks pass through to map where there's no UI
+  },
+  topNavContainer: {
+    position: 'absolute',
+    top: '32px',
+    left: '32px',
+    right: '32px',
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    pointerEvents: 'auto',
+  },
+  leaderboardContainer: {
+    position: 'absolute',
+    top: '110px', // Below topNav
+    left: '32px',
+    bottom: '32px',
+    width: '360px',
     display: 'flex',
     flexDirection: 'column',
-    overflow: 'hidden'
+    pointerEvents: 'auto',
   },
   loadingOverlay: {
     position: 'fixed',

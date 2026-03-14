@@ -19,41 +19,45 @@ export const SessionStatus = () => {
   };
 
   return (
-    <div className="glass-panel" style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', height: '100%' }}>
+    <div className="glass-panel" style={{ 
+      flexDirection: 'row', 
+      alignItems: 'center', 
+      padding: '8px 24px',
+      gap: '24px',
+      borderRadius: '30px', // Pill shape
+      border: '1px solid rgba(255, 255, 255, 0.1)'
+    }}>
       
-      <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
         <div style={{ 
-          backgroundColor: getFlagColor(flag), 
-          color: flag === 'Yellow' || flag === 'VSC' || flag === 'SC' || flag === 'Chequered' ? '#000' : '#fff',
-          padding: '8px 24px', 
-          borderRadius: '4px',
+          color: getFlagColor(flag),
           fontWeight: 700,
-          fontSize: '1.2rem',
+          fontSize: '0.9rem',
           letterSpacing: '1px',
           display: 'flex',
           alignItems: 'center',
-          gap: '8px',
+          gap: '6px',
           textTransform: 'uppercase'
         }}>
-          <Flag size={20} />
-          {flag} FLAG
+          <Flag size={16} color={getFlagColor(flag)} />
+          {flag}
         </div>
-      </div>
 
-      <div style={{ display: 'flex', gap: '32px' }}>
+      <div style={{ width: '1px', height: '24px', backgroundColor: 'rgba(255,255,255,0.1)' }}></div>
+
+      <div style={{ display: 'flex', gap: '20px' }}>
         <div style={styles.metric}>
-          <Clock size={18} color="var(--color-text-dim)" />
-          <span>{remaining_laps} LAPS REMAINING</span>
+          <Clock size={16} color="var(--color-text-dim)" />
+          <span>{remaining_laps} LAPS</span>
         </div>
         
         <div style={styles.metric}>
-          <ThermometerSun size={18} color="var(--color-text-dim)" />
-          <span>TRACK: <span className="glow-red">{track_temp}°C</span></span>
+          <ThermometerSun size={16} color="var(--color-text-dim)" />
+          <span>TRACK: <span style={{ color: 'var(--color-text)' }}>{track_temp}°C</span></span>
         </div>
 
         <div style={styles.metric}>
-          <Wind size={18} color="var(--color-text-dim)" />
-          <span>AIR: {air_temp}°C</span>
+          <Wind size={16} color="var(--color-text-dim)" />
+          <span>AIR: <span style={{ color: 'var(--color-text)' }}>{air_temp}°C</span></span>
         </div>
       </div>
 
@@ -65,10 +69,11 @@ const styles = {
   metric: {
     display: 'flex',
     alignItems: 'center',
-    gap: '8px',
+    gap: '6px',
     fontFamily: 'var(--font-mono)',
-    fontSize: '1rem',
-    fontWeight: 500,
-    color: 'var(--color-text)'
+    fontSize: '0.85rem',
+    fontWeight: 600,
+    color: 'var(--color-text-dim)',
+    letterSpacing: '0.5px'
   }
 };

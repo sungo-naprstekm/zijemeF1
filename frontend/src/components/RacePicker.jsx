@@ -74,40 +74,50 @@ export function RacePicker() {
   };
 
   return (
-    <div style={styles.wrapper}>
-      {/* Rok */}
-      <select
-        value={year}
-        onChange={e => setYear(Number(e.target.value))}
-        style={styles.select}
-      >
-        {YEARS.map(y => <option key={y} value={y}>{y}</option>)}
-      </select>
+    <div className="glass-panel" style={{ 
+      ...styles.wrapper,
+      padding: '12px 16px',
+      borderRadius: '24px',
+      border: '1px solid rgba(255, 255, 255, 0.1)',
+      gap: '16px'
+    }}>
+      <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+        {/* Rok */}
+        <select
+          value={year}
+          onChange={e => setYear(Number(e.target.value))}
+          style={styles.select}
+        >
+          {YEARS.map(y => <option key={y} value={y}>{y}</option>)}
+        </select>
 
-      {/* Závod */}
-      <select
-        value={selectedRound}
-        onChange={e => setSelectedRound(e.target.value)}
-        style={styles.select}
-        disabled={loadingRaces || races.length === 0}
-      >
-        {loadingRaces
-          ? <option>Načítám...</option>
-          : races.length === 0
-          ? <option>Žádné závody</option>
-          : races.map(r => <option key={r.round} value={r.name}>{r.name}</option>)
-        }
-      </select>
+        {/* Závod */}
+        <select
+          value={selectedRound}
+          onChange={e => setSelectedRound(e.target.value)}
+          style={styles.select}
+          disabled={loadingRaces || races.length === 0}
+        >
+          {loadingRaces
+            ? <option>Načítám...</option>
+            : races.length === 0
+            ? <option>Žádné závody</option>
+            : races.map(r => <option key={r.round} value={r.name}>{r.name}</option>)
+          }
+        </select>
+      </div>
+
+      <div style={{ width: '1px', height: '24px', backgroundColor: 'rgba(255,255,255,0.1)' }}></div>
 
       {/* Od kola */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-        <label style={{ color: '#e2e8f0', fontSize: '12px' }}>Kolo:</label>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <label style={{ color: 'var(--color-text-dim)', fontSize: '0.8rem', fontWeight: 600 }}>KOLO</label>
         <input
           type="number"
           min="1"
           value={startLap}
           onChange={e => setStartLap(Number(e.target.value))}
-          style={{ ...styles.select, width: '60px' }}
+          style={{ ...styles.select, width: '60px', textAlign: 'center' }}
         />
       </div>
 
@@ -117,35 +127,42 @@ export function RacePicker() {
         disabled={loading || !selectedRound}
         style={{
           ...styles.button,
+          background: 'rgba(255, 255, 255, 0.1)',
+          color: 'var(--color-text)',
+          border: '1px solid rgba(255, 255, 255, 0.2)',
           opacity: (loading || !selectedRound) ? 0.5 : 1
         }}
       >
-        {loading ? '⏳' : '📥 NAČÍST'}
+        {loading ? '⏳' : 'NAČÍST'}
       </button>
 
       {/* Ovládání přehrávání */}
-      <div style={{ display: 'flex', gap: '6px', marginLeft: 'auto' }}>
+      <div style={{ display: 'flex', gap: '8px', marginLeft: 'auto' }}>
         <button
           onClick={() => handlePlayback('play')}
           disabled={playbackState === 'play'}
           style={{
             ...styles.button,
-            background: playbackState === 'play' ? '#22c55e' : 'linear-gradient(135deg, #22c55e, #16a34a)',
-            opacity: playbackState === 'play' ? 0.3 : 1
+            background: playbackState === 'play' ? 'rgba(34, 197, 94, 0.2)' : 'rgba(34, 197, 94, 0.1)',
+            color: playbackState === 'play' ? '#4ade80' : '#22c55e',
+            border: `1px solid ${playbackState === 'play' ? 'rgba(74, 222, 128, 0.5)' : 'rgba(34, 197, 94, 0.3)'}`,
+            opacity: playbackState === 'play' ? 0.5 : 1
           }}
         >
-          ▶ PLAY
+          <span style={{ fontSize: '0.8rem' }}>▶</span> PLAY
         </button>
         <button
           onClick={() => handlePlayback('pause')}
           disabled={playbackState === 'pause'}
           style={{
             ...styles.button,
-            background: playbackState === 'pause' ? '#ef4444' : 'linear-gradient(135deg, #ef4444, #dc2626)',
-            opacity: playbackState === 'pause' ? 0.3 : 1
+            background: playbackState === 'pause' ? 'rgba(239, 68, 68, 0.2)' : 'rgba(239, 68, 68, 0.1)',
+            color: playbackState === 'pause' ? '#f87171' : '#ef4444',
+            border: `1px solid ${playbackState === 'pause' ? 'rgba(248, 113, 113, 0.5)' : 'rgba(239, 68, 68, 0.3)'}`,
+            opacity: playbackState === 'pause' ? 0.5 : 1
           }}
         >
-          ⏸ PAUSE
+          <span style={{ fontSize: '0.8rem' }}>⏸</span> PAUSE
         </button>
       </div>
 
@@ -164,29 +181,35 @@ const styles = {
   },
   select: {
     background: 'rgba(255,255,255,0.05)',
-    border: '1px solid rgba(255,255,255,0.15)',
-    borderRadius: '6px',
-    color: '#e2e8f0',
-    padding: '6px 10px',
-    fontSize: '13px',
+    border: '1px solid rgba(255,255,255,0.1)',
+    borderRadius: '8px',
+    color: 'var(--color-text)',
+    padding: '8px 12px',
+    fontSize: '0.85rem',
+    fontWeight: 500,
     cursor: 'pointer',
     outline: 'none',
+    transition: 'all 0.2s',
+    backdropFilter: 'blur(10px)',
   },
   button: {
-    background: 'linear-gradient(135deg, #00d4ff, #0080ff)',
-    border: 'none',
-    borderRadius: '6px',
-    color: '#000',
-    padding: '6px 16px',
-    fontWeight: '700',
-    fontSize: '12px',
+    borderRadius: '16px', // More pill-like
+    padding: '8px 16px',
+    fontWeight: '600',
+    fontSize: '0.85rem',
     cursor: 'pointer',
-    letterSpacing: '0.05em',
-    transition: 'opacity 0.2s',
+    letterSpacing: '0.5px',
+    transition: 'all 0.2s',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '6px'
   },
   status: {
-    color: '#22d3ee',
-    fontSize: '12px',
-    fontFamily: 'monospace',
+    color: 'var(--color-text-dim)',
+    fontSize: '0.8rem',
+    fontFamily: 'var(--font-mono)',
+    position: 'absolute',
+    bottom: '-24px',
+    right: '16px'
   }
 };
