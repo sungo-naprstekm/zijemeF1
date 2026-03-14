@@ -69,9 +69,11 @@ export const useF1Store = create((set, get) => ({
           });
         }
       )
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'telemetry' },
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'telemetry' },
         (payload) => {
+          if (payload.eventType === 'DELETE') return;
           const t = payload.new;
+          if (!t) return;
           set((state) => {
             const newPosts = { ...state.positions };
             if (t.x_pos !== null && t.y_pos !== null) {

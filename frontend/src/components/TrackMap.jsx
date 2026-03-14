@@ -47,17 +47,21 @@ const TrackMap = () => {
             const name = driverInfo?.broadcast_name || driverNum;
 
             return (
-              <g key={driverNum} className="driver-dot-group">
+              <g 
+                key={driverNum} 
+                className="driver-dot-group"
+                style={{ transform: `translate(${pos.x}px, ${pos.y}px)` }}
+              >
                 <circle
-                  cx={pos.x}
-                  cy={pos.y}
+                  cx="0"
+                  cy="0"
                   r="12"
                   fill={color}
                   className="driver-dot"
                 />
                 <text
-                  x={pos.x + 18}
-                  y={pos.y + 5}
+                  x="18"
+                  y="5"
                   className="driver-label"
                   fill="white"
                   fontSize="24"

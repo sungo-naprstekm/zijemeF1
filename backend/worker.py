@@ -510,6 +510,10 @@ async def run_replay(year: int, round_name: str):
 
                     payloads = []
                     for abbr, pos_df in driver_pos_data.items():
+                        # Omezíme v tomto MVP telemetrii jen na VER a LEC (optimalizace DB a realtime fronty)
+                        if abbr not in ['VER', 'LEC']:
+                            continue
+
                         driver_num = abbr_to_num.get(abbr)
                         if not driver_num:
                             continue
@@ -529,6 +533,7 @@ async def run_replay(year: int, round_name: str):
                                 continue
 
                             payload = {
+                                "id": int(driver_num),
                                 "driver_number": driver_num,
                                 "session_time": round(current_secs, 3),
                                 "speed": 0,
@@ -565,9 +570,9 @@ async def run_replay(year: int, round_name: str):
 
                     if payloads:
                         try:
-                            supabase.table("telemetry").insert(payloads).execute()
+                            supabase.table("telemetry").upsert(payloads).execute()
                         except Exception as e:
-                            print(f"  Telemetry insert chyba: {e}")
+                            print(f"  Telemetry upsert chyba: {e}")
 
                     time.sleep(sim_step_sleep)
         else:
