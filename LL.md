@@ -34,3 +34,10 @@
 - **Příčina:** Skript vyžaduje `SUPABASE_URL` a `SUPABASE_KEY`. Tyto proměnné nebyly nastaveny v ovládacím panelu Renderu.
 - **Odstranění:** Manuální přidání proměnných v záložce **Environment** u dané služby na Render.com.
 - **Ponaučení pro příště:** Při nasazování backendu do cloudu musím uživateli dát naprosto explicitní seznam proměnných, které musí do UI naklikat, a vysvětlit mu, že cloud "nevidí" lokální `.env` soubor.
+
+## Chyba - Zpožděná reakce Replay Engine na zapnutí Pauzy
+- **Datum:** 14. března 2026
+- **Symptom:** Po stisknutí tlačítka "Pause" se telemetrie na frontendu stále hýbe až do konce aktuálního probíhajícího kola.
+- **Příčina:** Hlavní smyčka v `worker.py` sice zohledňovala stav pauzy na začátku počítaného kola, ale nikoli uvnitř vnitřního cyklu `for step_i in range(POSITION_STEPS_PER_LAP):`.
+- **Odstranění:** Přidána `while current_config.get("playback_state") == "paused":` smyčka do začátku iterace kroků kola, vč. prevence deadlocku s `restart_event`.
+- **Ponaučení pro příště:** U vnořených smyček dbejte na to, aby reakce na změnu globálního stavu (Pause, Play) byla začleněna na dostatečně nízké úrovni granulity pro plynulý/okamžitý výsledek.
