@@ -409,6 +409,37 @@ async def run_replay(year: int, round_name: str):
 
     print(f"Začíná LIVE STREAM Replay: {year} {round_name} ({total_laps} kol, 1:1 playback, {STEPS_PER_SECOND} fps)...")
 
+    # ──── RE-1: Init Leaderboard State (Dynamic) ────
+    valid_laps = all_laps.dropna(subset=['LapStartTime', 'LapTime']).copy()
+    if not valid_laps.empty:
+        valid_laps['LapEndTime'] = valid_laps['LapStartTime'] + valid_laps['LapTime']
+    else:
+        valid_laps['LapEndTime'] = pd.Series(dtype='timedelta64[ns]')
+
+    driver_state = {}
+    for _, row in results.iterrows():
+        driver_num = str(row['DriverNumber'])
+        grid_pos = int(row.get('GridPosition', 99)) if pd.notna(row.get('GridPosition')) else 99
+        driver_state[driver_num] = {
+            "driver_number": driver_num,
+            "position": grid_pos,
+            "broadcast_name": str(row['Abbreviation']),
+            "team_color": get_team_color(str(row.get('TeamName', ''))),
+            "gap_to_leader": "",
+            "interval": "",
+            "compound": str(row.get('Compound', 'S')) if pd.notna(row.get('Compound')) else 'S',
+            "tyre_age": 1,
+            "in_pit": False,
+            "last_lap_time": "",
+            "fastest_lap_time": "",
+            "sector1": "",
+            "sector2": "",
+            "sector3": "",
+            "is_personal_best": False,
+            "laps_completed": 0,
+            "last_lap_end_time": pd.Timedelta(seconds=0)
+        }
+
     # ══════════════════════════════════════════════
     # HLAVNÍ SMYČKA: kolo po kole
     # ══════════════════════════════════════════════
@@ -436,70 +467,7 @@ async def run_replay(year: int, round_name: str):
 
         lap_start = time.time()
 
-        # ──── RE-1: Leaderboard UPSERT ────
         lap_data = all_laps[all_laps['LapNumber'] == current_lap]
-        if not lap_data.empty:
-            lb_upserts = []
-            for _, lap_row in lap_data.iterrows():
-                abbr = str(lap_row.get('Driver', ''))
-                driver_num = abbr_to_num.get(abbr)
-                if not driver_num:
-                    continue
-
-                position = int(lap_row.get('Position', 99)) if pd.notna(lap_row.get('Position')) else 99
-                gap_to_leader = safe_timedelta_str(lap_row.get('GapToLeader'))
-                interval = safe_timedelta_str(lap_row.get('IntervalToPositionAhead'))
-                compound = str(lap_row.get('Compound', 'S')) if pd.notna(lap_row.get('Compound')) else 'S'
-                tyre_life = int(lap_row.get('TyreLife', 1)) if pd.notna(lap_row.get('TyreLife')) else 1
-
-                # Pit detection: PitInTime / PitOutTime
-                is_in_pit = False
-                pit_in = lap_row.get('PitInTime')
-                pit_out = lap_row.get('PitOutTime')
-                if pd.notna(pit_in) or pd.notna(pit_out):
-                    is_in_pit = True
-
-                last_lap_td = lap_row.get('LapTime')
-                last_lap_str = format_lap_time(last_lap_td)
-                sector1 = safe_timedelta_str(lap_row.get('Sector1Time'))
-                sector2 = safe_timedelta_str(lap_row.get('Sector2Time'))
-                sector3 = safe_timedelta_str(lap_row.get('Sector3Time'))
-
-                is_pb = False
-                fastest_lap_str = driver_fastest_lap.get(driver_num, "")
-                if pd.notna(last_lap_td) and hasattr(last_lap_td, 'total_seconds'):
-                    lap_secs = last_lap_td.total_seconds()
-                    if lap_secs > 0:
-                        prev_best = driver_fastest_lap_secs.get(driver_num, 999999)
-                        if lap_secs <= prev_best: # Update if faster or equal
-                            driver_fastest_lap_secs[driver_num] = lap_secs
-                            fastest_lap_str = last_lap_str
-                            driver_fastest_lap[driver_num] = last_lap_str
-                            is_pb = True
-
-                lb_upserts.append({
-                    "driver_number": driver_num,
-                    "position": position,
-                    "broadcast_name": abbr,
-                    "team_color": get_team_color(str(lap_row.get('Team', ''))),
-                    "gap_to_leader": gap_to_leader,
-                    "interval": interval,
-                    "compound": compound,
-                    "tyre_age": tyre_life,
-                    "in_pit": is_in_pit,
-                    "last_lap_time": last_lap_str,
-                    "fastest_lap_time": fastest_lap_str,
-                    "sector1": sector1,
-                    "sector2": sector2,
-                    "sector3": sector3,
-                    "is_personal_best": is_pb
-                })
-
-            if lb_upserts:
-                try:
-                    supabase.table("leaderboard").upsert(lb_upserts).execute()
-                except Exception as e:
-                    print(f"  [Kolo {current_lap}] Leaderboard UPSERT chyba: {e}")
 
         # ──── RE-3: Session State Update ────
         remaining = max(0, total_laps - current_lap)
@@ -571,6 +539,68 @@ async def run_replay(year: int, round_name: str):
                     frac = step_i / current_lap_steps if current_lap_steps > 0 else 0
                     current_session_time = lap_start_time + frac * time_span
                     current_secs = current_session_time.total_seconds()
+
+                    # ──── RE-1: Dynamický Leaderboard Update ────
+                    update_needed = False
+                    if not valid_laps.empty:
+                        # Najdi všechna kola, která skončila před aktuálním simulačním časem
+                        finished_laps = valid_laps[valid_laps['LapEndTime'] <= current_session_time]
+                        for _, lap_row in finished_laps.iterrows():
+                            abbr = str(lap_row.get('Driver', ''))
+                            driver_num = abbr_to_num.get(abbr)
+                            if not driver_num or driver_num not in driver_state:
+                                continue
+                            
+                            lap_no = int(lap_row['LapNumber'])
+                            
+                            if lap_no > driver_state[driver_num]['laps_completed']:
+                                driver_state[driver_num]['laps_completed'] = lap_no
+                                driver_state[driver_num]['last_lap_end_time'] = lap_row['LapEndTime']
+                                update_needed = True
+                                
+                                driver_state[driver_num]['gap_to_leader'] = safe_timedelta_str(lap_row.get('GapToLeader'))
+                                driver_state[driver_num]['interval'] = safe_timedelta_str(lap_row.get('IntervalToPositionAhead'))
+                                driver_state[driver_num]['compound'] = str(lap_row.get('Compound', 'S')) if pd.notna(lap_row.get('Compound')) else 'S'
+                                driver_state[driver_num]['tyre_age'] = int(lap_row.get('TyreLife', 1)) if pd.notna(lap_row.get('TyreLife')) else 1
+
+                                pit_in = lap_row.get('PitInTime')
+                                pit_out = lap_row.get('PitOutTime')
+                                driver_state[driver_num]['in_pit'] = True if (pd.notna(pit_in) or pd.notna(pit_out)) else False
+
+                                last_lap_td = lap_row.get('LapTime')
+                                last_lap_str = format_lap_time(last_lap_td)
+                                driver_state[driver_num]['last_lap_time'] = last_lap_str
+                                driver_state[driver_num]['sector1'] = safe_timedelta_str(lap_row.get('Sector1Time'))
+                                driver_state[driver_num]['sector2'] = safe_timedelta_str(lap_row.get('Sector2Time'))
+                                driver_state[driver_num]['sector3'] = safe_timedelta_str(lap_row.get('Sector3Time'))
+                                
+                                driver_state[driver_num]['is_personal_best'] = False
+                                if pd.notna(last_lap_td) and hasattr(last_lap_td, 'total_seconds'):
+                                    lap_secs = last_lap_td.total_seconds()
+                                    if lap_secs > 0:
+                                        prev_best = driver_fastest_lap_secs.get(driver_num, 999999)
+                                        if lap_secs <= prev_best:
+                                            driver_fastest_lap_secs[driver_num] = lap_secs
+                                            driver_state[driver_num]['fastest_lap_time'] = last_lap_str
+                                            driver_state[driver_num]['is_personal_best'] = True
+
+                    if update_needed:
+                        def sort_key(st):
+                            # Seřadit sestupně podle počtu ujetých kol a vzestupně podle času protnutí cíle
+                            return (-st['laps_completed'], st['last_lap_end_time'])
+                        
+                        sorted_drivers = sorted(driver_state.values(), key=sort_key)
+                        
+                        lb_upserts = []
+                        for i, st in enumerate(sorted_drivers):
+                            st['position'] = i + 1
+                            db_obj = {k: v for k, v in st.items() if k not in ('laps_completed', 'last_lap_end_time')}
+                            lb_upserts.append(db_obj)
+
+                        try:
+                            supabase.table("leaderboard").upsert(lb_upserts).execute()
+                        except Exception as e:
+                            print(f"  Leaderboard UPSERT chyba (dynamicky): {e}")
 
                     payloads = []
                     for abbr, pos_df in driver_pos_data.items():
