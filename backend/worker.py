@@ -413,6 +413,7 @@ async def run_replay(year: int, round_name: str):
         "id": 1,
         "flag": "Green",
         "remaining_laps": total_laps,
+        "current_lap": 1,
         "track_temp": initial_track_temp,
         "air_temp": initial_air_temp
     }).execute()
@@ -538,6 +539,7 @@ async def run_replay(year: int, round_name: str):
                 "id": 1,
                 "flag": flag,
                 "remaining_laps": remaining,
+                "current_lap": current_lap,
                 "track_temp": round(current_track_temp, 1),
                 "air_temp": round(current_air_temp, 1)
             }).execute()
@@ -694,6 +696,7 @@ async def run_replay(year: int, round_name: str):
             "id": 1,
             "flag": "Chequered",
             "remaining_laps": 0,
+            "current_lap": total_laps,
             "track_temp": round(current_track_temp if 'current_track_temp' in locals() else 0, 1),
             "air_temp": round(current_air_temp if 'current_air_temp' in locals() else 0, 1)
         }).execute()

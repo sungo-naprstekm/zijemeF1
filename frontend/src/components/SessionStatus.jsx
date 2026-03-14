@@ -3,7 +3,7 @@ import { useF1Store } from '../store/useF1Store';
 import { Flag, Clock, ThermometerSun, Wind } from 'lucide-react';
 
 export const SessionStatus = () => {
-  const { flag, remaining_time, remaining_laps, track_temp, air_temp } = useF1Store((state) => state.sessionState);
+  const { flag, remaining_time, remaining_laps, track_temp, air_temp, current_lap } = useF1Store((state) => state.sessionState);
 
   // Colors based on flag status
   const getFlagColor = (status) => {
@@ -17,6 +17,9 @@ export const SessionStatus = () => {
       default: return 'var(--color-text-dim)';
     }
   };
+
+  const currentLapSafe = current_lap || 1;
+  const totalLapsSafe = currentLapSafe + (remaining_laps || 0);
 
   return (
     <div className="glass-panel" style={{ 
@@ -47,7 +50,7 @@ export const SessionStatus = () => {
       <div style={{ display: 'flex', gap: '20px' }}>
         <div style={styles.metric}>
           <Clock size={16} color="var(--color-text-dim)" />
-          <span>{remaining_laps} LAPS</span>
+          <span>LAP {currentLapSafe}/{totalLapsSafe}</span>
         </div>
         
         <div style={styles.metric}>

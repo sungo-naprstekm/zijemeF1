@@ -6,6 +6,7 @@ CREATE TABLE public.session_state (
     flag varchar(20) NOT NULL DEFAULT 'Green',
     remaining_time varchar(20),
     remaining_laps int,
+    current_lap int DEFAULT 1,
     track_temp numeric(5, 2),
     air_temp numeric(5, 2),
     updated_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
