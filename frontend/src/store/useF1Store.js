@@ -32,6 +32,12 @@ export const useF1Store = create((set, get) => ({
     get().resetForNewSession();
   },
 
+  fetchTrackOutline: async () => {
+    console.log("[F1Store] Manuální stažení databáze track_outline (fallback)...");
+    const { data: trackData } = await supabase.from('track_outline').select('*').limit(1).single();
+    if (trackData) set({ trackOutline: trackData });
+  },
+
   initSupabase: async () => {
     const { data: sessionData } = await supabase.from('session_state').select('*').limit(1).single();
     if (sessionData) set({ sessionState: sessionData });
@@ -39,8 +45,7 @@ export const useF1Store = create((set, get) => ({
     const { data: lbData } = await supabase.from('leaderboard').select('*').order('position', { ascending: true });
     if (lbData) set({ leaderboard: lbData });
 
-    const { data: trackData } = await supabase.from('track_outline').select('*').limit(1).single();
-    if (trackData) set({ trackOutline: trackData });
+    get().fetchTrackOutline();
 
     const channels = supabase.channel('custom-all-channel')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'session_state' },
@@ -54,7 +59,6 @@ export const useF1Store = create((set, get) => ({
       )
       .on('postgres_changes', { event: '*', schema: 'public', table: 'leaderboard' },
         (payload) => {
-          console.log("[Supabase Realtime] Event přijat:", payload);
           if (payload.eventType === 'DELETE') {
             // Smažeme jezdce z lokálního stavu
             set((state) => ({
@@ -76,7 +80,6 @@ export const useF1Store = create((set, get) => ({
       )
       .on('postgres_changes', { event: '*', schema: 'public', table: 'telemetry' },
         (payload) => {
-          console.log("[Supabase Realtime] Event přijat:", payload);
           if (payload.eventType === 'DELETE') {
             set((state) => {
               const newPositions = { ...state.positions };
@@ -103,10 +106,17 @@ export const useF1Store = create((set, get) => ({
       )
       .on('postgres_changes', { event: '*', schema: 'public', table: 'track_outline' },
         (payload) => {
-          console.log("[Supabase Realtime] Event přijat:", payload);
+          console.log("[Supabase Realtime] Track_outline update:", payload);
           if (payload.eventType === 'DELETE') return;
           if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
-            if (payload.new) set({ trackOutline: payload.new });
+            if (payload.new) {
+               // PostgreSQL neodesílá TOAST (velké JSON objekty) u Realtime updatů, pokud nejsou izolovány
+               if (!payload.new.points || payload.new.points.length === 0 || typeof payload.new.points === 'string') {
+                  get().fetchTrackOutline();
+               } else {
+                  set({ trackOutline: payload.new });
+               }
+            }
           }
         }
       )
