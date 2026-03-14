@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useF1Store } from '../store/useF1Store';
 
 const YEARS = [2026, 2025, 2024, 2023, 2022, 2021];
 
@@ -36,6 +37,10 @@ export function RacePicker() {
     if (!renderUrl || !selectedRound) return;
     setLoading(true);
     setStatus('Načítám a připravuji replay...');
+    
+    // Okamžitý reset frontendu
+    useF1Store.getState().setSession(year, selectedRound);
+    
     try {
       await fetch(`${renderUrl}/set-session`, {
         method: 'POST',

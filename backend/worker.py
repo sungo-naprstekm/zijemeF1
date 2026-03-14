@@ -290,20 +290,36 @@ async def run_replay(year: int, round_name: str):
 
             x_min, x_max = min(all_x), max(all_x)
             y_min, y_max = min(all_y), max(all_y)
+            
             x_range = max(x_max - x_min, 1)
             y_range = max(y_max - y_min, 1)
-            scale = 900 / max(x_range, y_range)
+            
+            # Map dimensions
+            max_dim = 900
+            scale = max_dim / max(x_range, y_range)
+            
+            # Calculate offsets to center the map
+            scaled_width = x_range * scale
+            scaled_height = y_range * scale
+            x_offset = (1000 - scaled_width) / 2
+            y_offset = (1000 - scaled_height) / 2
 
             outline_points = []
             step_size = max(1, len(pos_data) // 500)
             for i in range(0, len(pos_data), step_size):
                 row = pos_data.iloc[i]
                 outline_points.append({
-                    "x": round((float(row['X']) - x_min) * scale + 50, 2),
-                    "y": round((float(row['Y']) - y_min) * scale + 50, 2)
+                    "x": round((float(row['X']) - x_min) * scale + x_offset, 2),
+                    "y": round((float(row['Y']) - y_min) * scale + y_offset, 2)
                 })
 
-            pos_norm_bounds = {"x_min": x_min, "y_min": y_min, "scale": scale}
+            pos_norm_bounds = {
+                "x_min": x_min, 
+                "y_min": y_min, 
+                "scale": scale,
+                "x_offset": x_offset,
+                "y_offset": y_offset
+            }
 
             supabase.table("track_outline").upsert({
                 "id": 1,
@@ -603,11 +619,11 @@ async def run_replay(year: int, round_name: str):
                                 "brake": 0,
                             }
 
-                            # Normalizace X/Y
+                            # Normalizace X/Y telemetrického bodu stejnou rovnicí jako obrys
                             if pos_norm_bounds:
                                 bounds = pos_norm_bounds
-                                payload["x_pos"] = round((float(x_val) - bounds['x_min']) * bounds['scale'] + 50, 2)
-                                payload["y_pos"] = round((float(y_val) - bounds['y_min']) * bounds['scale'] + 50, 2)
+                                payload["x_pos"] = round((float(x_val) - bounds['x_min']) * bounds['scale'] + bounds['x_offset'], 2)
+                                payload["y_pos"] = round((float(y_val) - bounds['y_min']) * bounds['scale'] + bounds['y_offset'], 2)
 
                             # Doplnit telemetrii (speed, RPM, ...) pokud máme
                             telem_df = driver_telem_data.get(abbr)

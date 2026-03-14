@@ -22,6 +22,7 @@ export const useF1Store = create((set, get) => ({
       leaderboard: [],
       telemetry: {},
       positions: {},
+      trackOutline: null,
       isLoading: true,
       sessionState: { flag: 'Loading...', remaining_time: '', remaining_laps: 0, track_temp: 0, air_temp: 0 }
     });
