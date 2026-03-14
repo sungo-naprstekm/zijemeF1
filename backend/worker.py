@@ -163,11 +163,9 @@ def get_team_color(team_name):
 # ──────────────────────────────────────────────
 def safe_timedelta_str(val):
     """Převede Timedelta / float / NaT na string sekund, nebo ''."""
-    if val is None or (isinstance(val, float) and (pd.isna(val) or np.isnan(val))):
+    if pd.isna(val):
         return ""
     if isinstance(val, pd.Timedelta):
-        if pd.isna(val):
-            return ""
         return f"{val.total_seconds():.3f}"
     if isinstance(val, (int, float)):
         return f"{val:.3f}"
