@@ -236,7 +236,8 @@ async def run_replay(year: int, round_name: str):
     print(f"Stahuji data: {year} – {round_name}...")
     session = fastf1.get_session(year, round_name, 'R')
     # messages=True pro vlajky (RE-3)
-    session.load(telemetry=False, weather=True, laps=True, messages=True)
+    # telemetry=True je nutné pro načtení pozičních dat (X, Y) obrysu trati a jezdců
+    session.load(telemetry=True, weather=True, laps=True, messages=True)
     print("Data načtena. Připravuji vysílání...")
     print_memory_usage("Po načtení dat do FastF1 Session")
 
