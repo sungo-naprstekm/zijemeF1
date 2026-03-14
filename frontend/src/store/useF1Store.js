@@ -46,12 +46,16 @@ export const useF1Store = create((set, get) => ({
     const channels = supabase.channel('custom-all-channel')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'session_state' },
         (payload) => {
+          console.log("[Supabase Realtime] Event přijat:", payload);
           if (payload.eventType === 'DELETE') return;
-          set({ sessionState: payload.new, isLoading: false });
+          if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+            set({ sessionState: payload.new, isLoading: false });
+          }
         }
       )
       .on('postgres_changes', { event: '*', schema: 'public', table: 'leaderboard' },
         (payload) => {
+          console.log("[Supabase Realtime] Event přijat:", payload);
           if (payload.eventType === 'DELETE') {
             // Smažeme jezdce z lokálního stavu
             set((state) => ({
@@ -59,37 +63,55 @@ export const useF1Store = create((set, get) => ({
             }));
             return;
           }
-          set((state) => {
-            const exists = state.leaderboard.find(l => l.driver_number === payload.new.driver_number);
-            const newList = exists
-              ? state.leaderboard.map(l => l.driver_number === payload.new.driver_number ? payload.new : l)
-              : [...state.leaderboard, payload.new];
-            newList.sort((a, b) => a.position - b.position);
-            return { leaderboard: newList, isLoading: false };
-          });
+          if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+            set((state) => {
+              const exists = state.leaderboard.find(l => l.driver_number === payload.new.driver_number);
+              const newList = exists
+                ? state.leaderboard.map(l => l.driver_number === payload.new.driver_number ? payload.new : l)
+                : [...state.leaderboard, payload.new];
+              newList.sort((a, b) => a.position - b.position);
+              return { leaderboard: newList, isLoading: false };
+            });
+          }
         }
       )
       .on('postgres_changes', { event: '*', schema: 'public', table: 'telemetry' },
         (payload) => {
-          if (payload.eventType === 'DELETE') return;
-          const t = payload.new;
-          if (!t) return;
-          set((state) => {
-            const newPosts = { ...state.positions };
-            if (t.x_pos !== null && t.y_pos !== null) {
-              newPosts[t.driver_number] = { x: t.x_pos, y: t.y_pos };
-            }
-            return {
-              telemetry: { ...state.telemetry, [t.driver_number]: t },
-              positions: newPosts,
-              isLoading: false
-            };
-          });
+          console.log("[Supabase Realtime] Event přijat:", payload);
+          if (payload.eventType === 'DELETE') {
+            set((state) => {
+              const newTelemetry = { ...state.telemetry };
+              const newPositions = { ...state.positions };
+              delete newTelemetry[payload.old?.driver_number];
+              delete newPositions[payload.old?.driver_number];
+              return { telemetry: newTelemetry, positions: newPositions };
+            });
+            return;
+          }
+          if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+            const t = payload.new;
+            if (!t) return;
+            set((state) => {
+              const newPosts = { ...state.positions };
+              if (t.x_pos !== null && t.y_pos !== null) {
+                newPosts[t.driver_number] = { x: t.x_pos, y: t.y_pos };
+              }
+              return {
+                telemetry: { ...state.telemetry, [t.driver_number]: t },
+                positions: newPosts,
+                isLoading: false
+              };
+            });
+          }
         }
       )
       .on('postgres_changes', { event: '*', schema: 'public', table: 'track_outline' },
         (payload) => {
-          if (payload.new) set({ trackOutline: payload.new });
+          console.log("[Supabase Realtime] Event přijat:", payload);
+          if (payload.eventType === 'DELETE') return;
+          if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+            if (payload.new) set({ trackOutline: payload.new });
+          }
         }
       )
       .subscribe();
