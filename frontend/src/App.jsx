@@ -2,7 +2,6 @@ import React, { useEffect } from 'react';
 import { useF1Store } from './store/useF1Store';
 import { SessionStatus } from './components/SessionStatus';
 import { Leaderboard } from './components/Leaderboard';
-import { TelemetryDashboard } from './components/TelemetryDashboard';
 import { RacePicker } from './components/RacePicker';
 import TrackMap from './components/TrackMap';
 
@@ -49,10 +48,6 @@ function App() {
           <TrackMap />
           <Leaderboard />
         </aside>
-        <section style={styles.centerArea}>
-          <TelemetryDashboard driverNumber={"1"} name="VER" teamColor="#3671C6" />
-          <TelemetryDashboard driverNumber={"16"} name="LEC" teamColor="#E80020" />
-        </section>
       </main>
     </div>
   )
@@ -89,14 +84,6 @@ const styles = {
     display: 'flex',
     flexDirection: 'column',
     overflow: 'hidden'
-  },
-  centerArea: {
-    flex: 1,
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '24px',
-    overflowY: 'auto',
-    paddingRight: '8px'
   },
   loadingOverlay: {
     position: 'fixed',

@@ -236,7 +236,7 @@ async def run_replay(year: int, round_name: str):
     print(f"Stahuji data: {year} – {round_name}...")
     session = fastf1.get_session(year, round_name, 'R')
     # messages=True pro vlajky (RE-3)
-    session.load(telemetry=True, weather=True, laps=True, messages=True)
+    session.load(telemetry=False, weather=True, laps=True, messages=True)
     print("Data načtena. Připravuji vysílání...")
     print_memory_usage("Po načtení dat do FastF1 Session")
 
@@ -389,20 +389,7 @@ async def run_replay(year: int, round_name: str):
             print(f"  Pozice pro {abbr}: přeskočeno ({e})")
     print(f"Poziční data načtena pro {len(driver_pos_data)} jezdců.")
 
-    # ──── Pre-load telemetrie pro všechny jezdce (speed, RPM atd.) ────
-    print("Načítám telemetrii pro všechny jezdce...")
-    driver_telem_data = {}   # { abbr: DataFrame }
-    for abbr in drivers_abbr:
-        try:
-            driver_laps = all_laps.pick_drivers(abbr)
-            if driver_laps.empty:
-                continue
-            telem = driver_laps.get_telemetry()
-            if telem is not None and not telem.empty:
-                driver_telem_data[abbr] = telem
-        except Exception as e:
-            print(f"  Telemetrie pro {abbr}: přeskočeno ({e})")
-    print(f"Telemetrická data načtena pro {len(driver_telem_data)} jezdců.")
+
 
     # Mapování abbr → driver_number
     abbr_to_num = {}
@@ -612,11 +599,6 @@ async def run_replay(year: int, round_name: str):
                                 "id": int(driver_num),
                                 "driver_number": driver_num,
                                 "session_time": round(current_secs, 3),
-                                "speed": 0,
-                                "rpm": 0,
-                                "gear": 0,
-                                "throttle": 0,
-                                "brake": 0,
                             }
 
                             # Normalizace X/Y telemetrického bodu stejnou rovnicí jako obrys
@@ -624,20 +606,6 @@ async def run_replay(year: int, round_name: str):
                                 bounds = pos_norm_bounds
                                 payload["x_pos"] = round((float(x_val) - bounds['x_min']) * bounds['scale'] + bounds['x_offset'], 2)
                                 payload["y_pos"] = round((float(y_val) - bounds['y_min']) * bounds['scale'] + bounds['y_offset'], 2)
-
-                            # Doplnit telemetrii (speed, RPM, ...) pokud máme
-                            telem_df = driver_telem_data.get(abbr)
-                            if telem_df is not None and 'SessionTime' in telem_df.columns:
-                                t_diffs = (telem_df['SessionTime'] - current_session_time).abs()
-                                # Hledáme jen pokud je blízko (max 2s)
-                                nearest_t_idx = t_diffs.idxmin()
-                                if t_diffs.loc[nearest_t_idx].total_seconds() < 2.0:
-                                    tr = telem_df.loc[nearest_t_idx]
-                                    payload["speed"] = int(tr.get('Speed', 0)) if pd.notna(tr.get('Speed')) else 0
-                                    payload["rpm"] = int(tr.get('RPM', 0)) if pd.notna(tr.get('RPM')) else 0
-                                    payload["gear"] = int(tr.get('nGear', 0)) if pd.notna(tr.get('nGear')) else 0
-                                    payload["throttle"] = int(tr.get('Throttle', 0)) if pd.notna(tr.get('Throttle')) else 0
-                                    payload["brake"] = int(tr.get('Brake', 0)) if pd.notna(tr.get('Brake')) else 0
 
                             payloads.append(payload)
 
@@ -670,7 +638,6 @@ async def run_replay(year: int, round_name: str):
     print_memory_usage("Před uvolňováním obřích dat")
     # Smažeme obří slovníky explicitně
     del driver_pos_data
-    del driver_telem_data
     del all_laps
     del session
     gc.collect()

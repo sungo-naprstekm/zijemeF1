@@ -10,17 +10,15 @@ export const useF1Store = create((set, get) => ({
     air_temp: 0
   },
   leaderboard: [],
-  telemetry: {},
   positions: {}, // { driver_number: { x, y } }
   trackOutline: null, // { points: [{x, y}], circuit_name: string }
   isLoading: false,
-  currentSession: { year: 2024, round: 'British Grand Prix' },
+  currentSession: null,
 
   // Vymazání lokálního stavu při přepnutí závodu
   resetForNewSession: () => {
     set({
       leaderboard: [],
-      telemetry: {},
       positions: {},
       trackOutline: null,
       isLoading: true,
@@ -81,11 +79,9 @@ export const useF1Store = create((set, get) => ({
           console.log("[Supabase Realtime] Event přijat:", payload);
           if (payload.eventType === 'DELETE') {
             set((state) => {
-              const newTelemetry = { ...state.telemetry };
               const newPositions = { ...state.positions };
-              delete newTelemetry[payload.old?.driver_number];
               delete newPositions[payload.old?.driver_number];
-              return { telemetry: newTelemetry, positions: newPositions };
+              return { positions: newPositions };
             });
             return;
           }
@@ -98,7 +94,6 @@ export const useF1Store = create((set, get) => ({
                 newPosts[t.driver_number] = { x: t.x_pos, y: t.y_pos };
               }
               return {
-                telemetry: { ...state.telemetry, [t.driver_number]: t },
                 positions: newPosts,
                 isLoading: false
               };
