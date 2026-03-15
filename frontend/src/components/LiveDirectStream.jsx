@@ -7,7 +7,9 @@ export function LiveDirectStream() {
   const listRef = useRef(null);
 
   useEffect(() => {
-    let ws = new WebSocket('ws://localhost:8081');
+    const wsUrl = import.meta.env.VITE_LIVE_WS_URL || 'ws://localhost:8081';
+    console.log('Connecting to Live WebSocket:', wsUrl);
+    let ws = new WebSocket(wsUrl);
     
     ws.onopen = () => {
         setStatus('connected');

@@ -162,9 +162,10 @@ async def main():
     t = threading.Thread(target=signalr_thread_runner, daemon=True)
     t.start()
 
-    # Rozjet WebSocket proxy server na portu 8081
-    logger.info("Spouštím WebSocket server na ws://localhost:8081")
-    async with websockets.serve(ws_handler, "0.0.0.0", 8081):
+    # Rozjet WebSocket proxy server na portu (pro Koyeb)
+    port = int(os.environ.get('PORT', 8081))
+    logger.info(f"Spouštím WebSocket server na portu {port}")
+    async with websockets.serve(ws_handler, "0.0.0.0", port):
         await asyncio.Future()  # běžet donekonečna
 
 if __name__ == "__main__":

@@ -1,0 +1,21 @@
+FROM python:3.10-slim
+
+WORKDIR /app
+
+# Instalace systémových závislostí (pokud by byly potřeba pro fastf1/pandas)
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+# Kopírování requirements a instalace
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Kopírování zdrojového kódu
+COPY live_worker.py .
+
+# Koyeb/Cloud prostředí nastaví environment variable PORT
+ENV PORT=8081
+
+# Spuštění
+CMD ["python", "live_worker.py"]
