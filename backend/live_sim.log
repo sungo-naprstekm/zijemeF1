@@ -1,0 +1,242 @@
+INFO:live_simulator:Spouštím Live Simulator na portu 8081
+INFO:websockets.server:server listening on 0.0.0.0:8081
+INFO:live_simulator:Načítám data pro GP Británie 2024...
+core           INFO 	Loading data for British Grand Prix - Race [v3.8.1]
+INFO:fastf1.fastf1.core:Loading data for British Grand Prix - Race [v3.8.1]
+req            INFO 	Using cached data for session_info
+INFO:fastf1.fastf1.req:Using cached data for session_info
+req            INFO 	Using cached data for driver_info
+INFO:fastf1.fastf1.req:Using cached data for driver_info
+req            INFO 	Using cached data for session_status_data
+INFO:fastf1.fastf1.req:Using cached data for session_status_data
+req            INFO 	Using cached data for lap_count
+INFO:fastf1.fastf1.req:Using cached data for lap_count
+req            INFO 	Using cached data for track_status_data
+INFO:fastf1.fastf1.req:Using cached data for track_status_data
+req            INFO 	Using cached data for _extended_timing_data
+INFO:fastf1.fastf1.req:Using cached data for _extended_timing_data
+req            INFO 	Using cached data for timing_app_data
+INFO:fastf1.fastf1.req:Using cached data for timing_app_data
+core           INFO 	Processing timing data...
+INFO:fastf1.fastf1.core:Processing timing data...
+req            INFO 	Using cached data for car_data
+INFO:fastf1.fastf1.req:Using cached data for car_data
+req            INFO 	Using cached data for position_data
+INFO:fastf1.fastf1.req:Using cached data for position_data
+req            INFO 	Using cached data for weather_data
+INFO:fastf1.fastf1.req:Using cached data for weather_data
+req            INFO 	Using cached data for race_control_messages
+INFO:fastf1.fastf1.req:Using cached data for race_control_messages
+core           INFO 	Finished loading data for 20 drivers: ['44', '1', '4', '81', '55', '27', '18', '14', '23', '22', '2', '20', '3', '16', '77', '31', '11', '24', '63', '10']
+INFO:fastf1.fastf1.core:Finished loading data for 20 drivers: ['44', '1', '4', '81', '55', '27', '18', '14', '23', '22', '2', '20', '3', '16', '77', '31', '11', '24', '63', '10']
+INFO:live_simulator:Geometrie okruhu připravena (675 bodů)
+INFO:live_simulator:Předpřipravuji data pro všechny jezdce na pozadí (může trvat minutu)...
+/Users/mila/zijemeF1/backend/venv/lib/python3.12/site-packages/fastf1/core.py:3129: FutureWarning: pick_driver is deprecated and will be removed in a future release. Use pick_drivers instead.
+  warnings.warn(("pick_driver is deprecated and will be removed"
+/Users/mila/zijemeF1/backend/venv/lib/python3.12/site-packages/fastf1/core.py:3129: FutureWarning: pick_driver is deprecated and will be removed in a future release. Use pick_drivers instead.
+  warnings.warn(("pick_driver is deprecated and will be removed"
+/Users/mila/zijemeF1/backend/venv/lib/python3.12/site-packages/fastf1/core.py:3129: FutureWarning: pick_driver is deprecated and will be removed in a future release. Use pick_drivers instead.
+  warnings.warn(("pick_driver is deprecated and will be removed"
+/Users/mila/zijemeF1/backend/venv/lib/python3.12/site-packages/fastf1/core.py:3129: FutureWarning: pick_driver is deprecated and will be removed in a future release. Use pick_drivers instead.
+  warnings.warn(("pick_driver is deprecated and will be removed"
+/Users/mila/zijemeF1/backend/venv/lib/python3.12/site-packages/fastf1/core.py:3129: FutureWarning: pick_driver is deprecated and will be removed in a future release. Use pick_drivers instead.
+  warnings.warn(("pick_driver is deprecated and will be removed"
+/Users/mila/zijemeF1/backend/venv/lib/python3.12/site-packages/fastf1/core.py:3129: FutureWarning: pick_driver is deprecated and will be removed in a future release. Use pick_drivers instead.
+  warnings.warn(("pick_driver is deprecated and will be removed"
+/Users/mila/zijemeF1/backend/venv/lib/python3.12/site-packages/fastf1/core.py:3129: FutureWarning: pick_driver is deprecated and will be removed in a future release. Use pick_drivers instead.
+  warnings.warn(("pick_driver is deprecated and will be removed"
+/Users/mila/zijemeF1/backend/venv/lib/python3.12/site-packages/fastf1/core.py:3129: FutureWarning: pick_driver is deprecated and will be removed in a future release. Use pick_drivers instead.
+  warnings.warn(("pick_driver is deprecated and will be removed"
+/Users/mila/zijemeF1/backend/venv/lib/python3.12/site-packages/fastf1/core.py:3129: FutureWarning: pick_driver is deprecated and will be removed in a future release. Use pick_drivers instead.
+  warnings.warn(("pick_driver is deprecated and will be removed"
+/Users/mila/zijemeF1/backend/venv/lib/python3.12/site-packages/fastf1/core.py:3129: FutureWarning: pick_driver is deprecated and will be removed in a future release. Use pick_drivers instead.
+  warnings.warn(("pick_driver is deprecated and will be removed"
+/Users/mila/zijemeF1/backend/venv/lib/python3.12/site-packages/fastf1/core.py:3129: FutureWarning: pick_driver is deprecated and will be removed in a future release. Use pick_drivers instead.
+  warnings.warn(("pick_driver is deprecated and will be removed"
+/Users/mila/zijemeF1/backend/venv/lib/python3.12/site-packages/fastf1/core.py:3129: FutureWarning: pick_driver is deprecated and will be removed in a future release. Use pick_drivers instead.
+  warnings.warn(("pick_driver is deprecated and will be removed"
+/Users/mila/zijemeF1/backend/venv/lib/python3.12/site-packages/fastf1/core.py:3129: FutureWarning: pick_driver is deprecated and will be removed in a future release. Use pick_drivers instead.
+  warnings.warn(("pick_driver is deprecated and will be removed"
+/Users/mila/zijemeF1/backend/venv/lib/python3.12/site-packages/fastf1/core.py:3129: FutureWarning: pick_driver is deprecated and will be removed in a future release. Use pick_drivers instead.
+  warnings.warn(("pick_driver is deprecated and will be removed"
+/Users/mila/zijemeF1/backend/venv/lib/python3.12/site-packages/fastf1/core.py:3129: FutureWarning: pick_driver is deprecated and will be removed in a future release. Use pick_drivers instead.
+  warnings.warn(("pick_driver is deprecated and will be removed"
+/Users/mila/zijemeF1/backend/venv/lib/python3.12/site-packages/fastf1/core.py:3129: FutureWarning: pick_driver is deprecated and will be removed in a future release. Use pick_drivers instead.
+  warnings.warn(("pick_driver is deprecated and will be removed"
+/Users/mila/zijemeF1/backend/venv/lib/python3.12/site-packages/fastf1/core.py:3129: FutureWarning: pick_driver is deprecated and will be removed in a future release. Use pick_drivers instead.
+  warnings.warn(("pick_driver is deprecated and will be removed"
+/Users/mila/zijemeF1/backend/venv/lib/python3.12/site-packages/fastf1/core.py:3129: FutureWarning: pick_driver is deprecated and will be removed in a future release. Use pick_drivers instead.
+  warnings.warn(("pick_driver is deprecated and will be removed"
+/Users/mila/zijemeF1/backend/venv/lib/python3.12/site-packages/fastf1/core.py:3129: FutureWarning: pick_driver is deprecated and will be removed in a future release. Use pick_drivers instead.
+  warnings.warn(("pick_driver is deprecated and will be removed"
+/Users/mila/zijemeF1/backend/venv/lib/python3.12/site-packages/fastf1/core.py:3129: FutureWarning: pick_driver is deprecated and will be removed in a future release. Use pick_drivers instead.
+  warnings.warn(("pick_driver is deprecated and will be removed"
+INFO:live_simulator:Simulace spuštěna. Vysílám data o plynulé frekvenci 10 Hz...
+ERROR:websockets.server:opening handshake failed
+Traceback (most recent call last):
+  File "/Users/mila/zijemeF1/backend/venv/lib/python3.12/site-packages/websockets/asyncio/server.py", line 356, in conn_handler
+    await connection.handshake(
+  File "/Users/mila/zijemeF1/backend/venv/lib/python3.12/site-packages/websockets/asyncio/server.py", line 142, in handshake
+    async with self.send_context(expected_state=CONNECTING):
+  File "/Library/Frameworks/Python.framework/Versions/3.12/lib/python3.12/contextlib.py", line 210, in __aenter__
+    return await anext(self.gen)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/mila/zijemeF1/backend/venv/lib/python3.12/site-packages/websockets/asyncio/connection.py", line 957, in send_context
+    raise self.protocol.close_exc from original_exc
+websockets.exceptions.ConnectionClosedError: no close frame received or sent
+INFO:websockets.server:connection open
+INFO:live_simulator:Nový klient připojen. Celkem: 1
+INFO:live_simulator:Klient odpojen. Zbývá: 0
+INFO:websockets.server:connection open
+INFO:live_simulator:Nový klient připojen. Celkem: 1
+INFO:live_simulator:Klient odpojen. Zbývá: 0
+INFO:websockets.server:connection open
+INFO:live_simulator:Nový klient připojen. Celkem: 1
+INFO:live_simulator:Klient odpojen. Zbývá: 0
+INFO:websockets.server:connection open
+INFO:live_simulator:Nový klient připojen. Celkem: 1
+INFO:live_simulator:Klient odpojen. Zbývá: 0
+INFO:websockets.server:connection open
+INFO:live_simulator:Nový klient připojen. Celkem: 1
+INFO:live_simulator:Klient odpojen. Zbývá: 0
+ERROR:websockets.server:opening handshake failed
+Traceback (most recent call last):
+  File "/Users/mila/zijemeF1/backend/venv/lib/python3.12/site-packages/websockets/http11.py", line 138, in parse
+    request_line = yield from parse_line(read_line)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/mila/zijemeF1/backend/venv/lib/python3.12/site-packages/websockets/http11.py", line 309, in parse_line
+    line = yield from read_line(MAX_LINE_LENGTH)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/mila/zijemeF1/backend/venv/lib/python3.12/site-packages/websockets/streams.py", line 46, in read_line
+    raise EOFError(f"stream ends after {p} bytes, before end of line")
+EOFError: stream ends after 0 bytes, before end of line
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/Users/mila/zijemeF1/backend/venv/lib/python3.12/site-packages/websockets/server.py", line 545, in parse
+    request = yield from Request.parse(
+              ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/mila/zijemeF1/backend/venv/lib/python3.12/site-packages/websockets/http11.py", line 140, in parse
+    raise EOFError("connection closed while reading HTTP request line") from exc
+EOFError: connection closed while reading HTTP request line
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/Users/mila/zijemeF1/backend/venv/lib/python3.12/site-packages/websockets/asyncio/server.py", line 356, in conn_handler
+    await connection.handshake(
+  File "/Users/mila/zijemeF1/backend/venv/lib/python3.12/site-packages/websockets/asyncio/server.py", line 207, in handshake
+    raise self.protocol.handshake_exc
+websockets.exceptions.InvalidMessage: did not receive a valid HTTP request
+INFO:websockets.server:connection open
+INFO:live_simulator:Nový klient připojen. Celkem: 1
+INFO:live_simulator:Klient odpojen. Zbývá: 0
+INFO:websockets.server:connection open
+INFO:live_simulator:Nový klient připojen. Celkem: 1
+INFO:live_simulator:Klient odpojen. Zbývá: 0
+INFO:websockets.server:connection open
+INFO:live_simulator:Nový klient připojen. Celkem: 1
+INFO:live_simulator:Klient odpojen. Zbývá: 0
+INFO:websockets.server:connection open
+INFO:live_simulator:Nový klient připojen. Celkem: 1
+INFO:live_simulator:Klient odpojen. Zbývá: 0
+INFO:websockets.server:connection open
+INFO:live_simulator:Nový klient připojen. Celkem: 1
+INFO:live_simulator:Klient odpojen. Zbývá: 0
+INFO:websockets.server:connection open
+INFO:live_simulator:Nový klient připojen. Celkem: 1
+INFO:websockets.server:connection open
+INFO:live_simulator:Nový klient připojen. Celkem: 2
+INFO:live_simulator:Klient odpojen. Zbývá: 1
+INFO:live_simulator:Klient odpojen. Zbývá: 0
+INFO:websockets.server:connection open
+INFO:live_simulator:Nový klient připojen. Celkem: 1
+WARNING:live_simulator:Chyba ve WS handleru: no close frame received or sent
+INFO:live_simulator:Klient odpojen. Zbývá: 0
+INFO:websockets.server:connection open
+INFO:live_simulator:Nový klient připojen. Celkem: 1
+INFO:live_simulator:Klient odpojen. Zbývá: 0
+INFO:websockets.server:connection open
+INFO:live_simulator:Nový klient připojen. Celkem: 1
+INFO:live_simulator:Klient odpojen. Zbývá: 0
+INFO:websockets.server:connection open
+INFO:live_simulator:Nový klient připojen. Celkem: 1
+INFO:live_simulator:Klient odpojen. Zbývá: 0
+INFO:websockets.server:connection open
+INFO:live_simulator:Nový klient připojen. Celkem: 1
+WARNING:live_simulator:Chyba ve WS handleru: no close frame received or sent
+INFO:live_simulator:Klient odpojen. Zbývá: 0
+INFO:websockets.server:connection open
+INFO:live_simulator:Nový klient připojen. Celkem: 1
+INFO:live_simulator:Klient odpojen. Zbývá: 0
+INFO:websockets.server:connection open
+INFO:live_simulator:Nový klient připojen. Celkem: 1
+INFO:live_simulator:Klient odpojen. Zbývá: 0
+INFO:websockets.server:connection open
+INFO:live_simulator:Nový klient připojen. Celkem: 1
+INFO:live_simulator:Klient odpojen. Zbývá: 0
+INFO:websockets.server:connection open
+INFO:live_simulator:Nový klient připojen. Celkem: 1
+INFO:live_simulator:Klient odpojen. Zbývá: 0
+INFO:websockets.server:connection open
+INFO:live_simulator:Nový klient připojen. Celkem: 1
+INFO:live_simulator:Klient odpojen. Zbývá: 0
+INFO:websockets.server:connection open
+INFO:live_simulator:Nový klient připojen. Celkem: 1
+WARNING:live_simulator:Chyba ve WS handleru: no close frame received or sent
+INFO:live_simulator:Klient odpojen. Zbývá: 0
+INFO:websockets.server:connection open
+INFO:live_simulator:Nový klient připojen. Celkem: 1
+INFO:live_simulator:Klient odpojen. Zbývá: 0
+ERROR:websockets.server:opening handshake failed
+Traceback (most recent call last):
+  File "/Users/mila/zijemeF1/backend/venv/lib/python3.12/site-packages/websockets/asyncio/server.py", line 356, in conn_handler
+    await connection.handshake(
+  File "/Users/mila/zijemeF1/backend/venv/lib/python3.12/site-packages/websockets/asyncio/server.py", line 142, in handshake
+    async with self.send_context(expected_state=CONNECTING):
+  File "/Library/Frameworks/Python.framework/Versions/3.12/lib/python3.12/contextlib.py", line 210, in __aenter__
+    return await anext(self.gen)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/mila/zijemeF1/backend/venv/lib/python3.12/site-packages/websockets/asyncio/connection.py", line 957, in send_context
+    raise self.protocol.close_exc from original_exc
+websockets.exceptions.ConnectionClosedError: no close frame received or sent
+INFO:websockets.server:connection open
+INFO:live_simulator:Nový klient připojen. Celkem: 1
+INFO:live_simulator:Klient odpojen. Zbývá: 0
+INFO:websockets.server:connection open
+INFO:live_simulator:Nový klient připojen. Celkem: 1
+WARNING:live_simulator:Chyba ve WS handleru: no close frame received or sent
+INFO:live_simulator:Klient odpojen. Zbývá: 0
+INFO:websockets.server:connection open
+INFO:live_simulator:Nový klient připojen. Celkem: 1
+INFO:live_simulator:Klient odpojen. Zbývá: 0
+INFO:websockets.server:connection open
+INFO:live_simulator:Nový klient připojen. Celkem: 1
+ERROR:websockets.server:opening handshake failed
+Traceback (most recent call last):
+  File "/Users/mila/zijemeF1/backend/venv/lib/python3.12/site-packages/websockets/asyncio/server.py", line 356, in conn_handler
+    await connection.handshake(
+  File "/Users/mila/zijemeF1/backend/venv/lib/python3.12/site-packages/websockets/asyncio/server.py", line 142, in handshake
+    async with self.send_context(expected_state=CONNECTING):
+  File "/Library/Frameworks/Python.framework/Versions/3.12/lib/python3.12/contextlib.py", line 210, in __aenter__
+    return await anext(self.gen)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/mila/zijemeF1/backend/venv/lib/python3.12/site-packages/websockets/asyncio/connection.py", line 957, in send_context
+    raise self.protocol.close_exc from original_exc
+websockets.exceptions.ConnectionClosedError: no close frame received or sent
+INFO:live_simulator:Klient odpojen. Zbývá: 0
+INFO:websockets.server:connection open
+INFO:live_simulator:Nový klient připojen. Celkem: 1
+ERROR:websockets.server:opening handshake failed
+Traceback (most recent call last):
+  File "/Users/mila/zijemeF1/backend/venv/lib/python3.12/site-packages/websockets/asyncio/server.py", line 356, in conn_handler
+    await connection.handshake(
+  File "/Users/mila/zijemeF1/backend/venv/lib/python3.12/site-packages/websockets/asyncio/server.py", line 142, in handshake
+    async with self.send_context(expected_state=CONNECTING):
+  File "/Library/Frameworks/Python.framework/Versions/3.12/lib/python3.12/contextlib.py", line 210, in __aenter__
+    return await anext(self.gen)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/mila/zijemeF1/backend/venv/lib/python3.12/site-packages/websockets/asyncio/connection.py", line 957, in send_context
+    raise self.protocol.close_exc from original_exc
+websockets.exceptions.ConnectionClosedError: no close frame received or sent

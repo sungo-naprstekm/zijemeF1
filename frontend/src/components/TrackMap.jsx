@@ -86,29 +86,25 @@ const TrackMap = () => {
         .track-map-container {
           width: 100%;
           height: 100%;
-          position: absolute;
-          inset: 0;
           display: flex;
           align-items: center;
           justify-content: center;
-          background: radial-gradient(circle at center, rgba(15, 23, 42, 0.4) 0%, var(--color-bg) 100%);
         }
-
-
 
         .track-map-svg-wrapper {
           width: 100%;
-          aspect-ratio: 1 / 1;
+          height: 100%;
           display: flex;
           align-items: center;
           justify-content: center;
+          padding: 24px;
         }
 
         .track-svg {
           width: 100%;
           height: 100%;
-          max-width: 90vh; /* Keep it constrained mostly by height to stay centered */
-          max-height: 90vh;
+          max-width: 100%;
+          max-height: 100%;
         }
 
         .track-outline-path {

@@ -29,11 +29,12 @@ export const Leaderboard = () => {
           Leaderboard
         </h3>
         {/* Hlavičky sloupečků telemetrie pro vizuální přehled */}
-        <div style={{ display: 'flex', gap: '32px', color: 'var(--color-text-dim)', fontSize: '0.65rem', paddingRight: '80px', fontWeight: 600, letterSpacing: '0.5px' }}>
-             <span>LAP TIME</span>
-             <span style={{ width: '40px', textAlign: 'center' }}>S1</span>
-             <span style={{ width: '40px', textAlign: 'center' }}>S2</span>
-             <span style={{ width: '40px', textAlign: 'center' }}>S3</span>
+        <div style={{ display: 'grid', gridTemplateColumns: '80px 40px 40px 40px 40px', gap: '8px', color: 'var(--color-text-dim)', fontSize: '0.65rem', paddingRight: '12px', fontWeight: 600, letterSpacing: '0.5px' }}>
+             <span style={{ textAlign: 'center' }}>LAP TIME</span>
+             <span style={{ textAlign: 'center' }}>S1</span>
+             <span style={{ textAlign: 'center' }}>S2</span>
+             <span style={{ textAlign: 'center' }}>S3</span>
+             <span style={{ textAlign: 'center' }}>GAP</span>
         </div>
       </div>
 
@@ -47,7 +48,7 @@ export const Leaderboard = () => {
             <div key={driver.driver_number} style={{
               display: 'flex',
               alignItems: 'center',
-              padding: '10px 16px',
+              padding: '10px 12px',
               borderBottom: '1px solid rgba(255, 255, 255, 0.03)',
               background: 'transparent',
               position: 'relative',
@@ -65,20 +66,20 @@ export const Leaderboard = () => {
               }} />
 
               {/* Pozice a Jméno */}
-              <div style={{ display: 'flex', alignItems: 'center', width: '110px' }}>
-                <div className="mono-text" style={{ width: '28px', fontWeight: 600, fontSize: '0.9rem', color: 'var(--color-text-dim)', paddingLeft: '8px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', width: '90px', shrink: 0 }}>
+                <div className="mono-text" style={{ width: '22px', fontWeight: 600, fontSize: '0.9rem', color: 'var(--color-text-dim)', paddingLeft: '6px' }}>
                   {driver.position}
                 </div>
-                <div style={{ fontWeight: 600, fontSize: '1.05rem', letterSpacing: '-0.3px', color: 'var(--color-text)' }}>
+                <div style={{ fontWeight: 600, fontSize: '1.05rem', letterSpacing: '-0.3px', color: 'var(--color-text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', width: '55px' }}>
                   {driver.broadcast_name}
                 </div>
               </div>
 
-              {/* Střední sekce - Telemetrie, Sektory a časy */}
-              <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingLeft: '12px', gap: '12px' }}>
+              {/* Střední sekce - Telemetrie, Sektory a časy - grid struktura */}
+              <div style={{ flex: 1, display: 'grid', gridTemplateColumns: 'minmax(60px, 1fr) 40px 40px 40px', gap: '8px', alignItems: 'center' }}>
                 
                 {/* Last Lap a PB */}
-                <div style={{ display: 'flex', flexDirection: 'column', width: '65px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', textAlign: 'center' }}>
                   <div className="mono-text" style={{ color: driver.is_personal_best ? 'var(--color-neon-purple)' : 'var(--color-text)', fontWeight: driver.is_personal_best ? '600' : '500', fontSize: '0.85rem' }}>
                     {driver.last_lap_time || '-'}
                   </div>
@@ -88,22 +89,19 @@ export const Leaderboard = () => {
                 </div>
 
                 {/* Sektory */}
-                <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-                    <div className="mono-text" style={{ color: 'var(--color-neon-yellow)', width: '40px', textAlign: 'right', fontSize: '0.8rem' }}>{driver.sector1 || '-'}</div>
-                    <div className="mono-text" style={{ color: 'var(--color-neon-yellow)', width: '40px', textAlign: 'right', fontSize: '0.8rem' }}>{driver.sector2 || '-'}</div>
-                    <div className="mono-text" style={{ color: 'var(--color-neon-yellow)', width: '40px', textAlign: 'right', fontSize: '0.8rem' }}>{driver.sector3 || '-'}</div>
-                </div>
+                <div className="mono-text" style={{ color: 'var(--color-neon-yellow)', textAlign: 'right', fontSize: '0.8rem' }}>{driver.sector1 || '-'}</div>
+                <div className="mono-text" style={{ color: 'var(--color-neon-yellow)', textAlign: 'right', fontSize: '0.8rem' }}>{driver.sector2 || '-'}</div>
+                <div className="mono-text" style={{ color: 'var(--color-neon-yellow)', textAlign: 'right', fontSize: '0.8rem' }}>{driver.sector3 || '-'}</div>
 
-                {/* Gapy a Interval */}
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', justifyContent: 'center', width: '55px' }}>
+              </div>
+              
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', justifyContent: 'center', width: '50px', marginLeft: 'auto' }}>
                   <div className="mono-text" style={{ fontSize: '0.75rem', color: 'var(--color-text-dim)', fontWeight: 600 }}>
                     {driver.gap_to_leader ? `+${driver.gap_to_leader}` : ''}
                   </div>
                   <div className="mono-text" style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.3)' }}>
                     {driver.interval ? `+${driver.interval}` : ''}
                   </div>
-                </div>
-
               </div>
 
               {/* Pneumatiky vizualizace */}

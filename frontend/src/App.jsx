@@ -42,19 +42,22 @@ function App() {
 
   if (isLiveDebug) {
     return (
-      <div style={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
-        <div style={{ padding: '8px', background: '#111', borderBottom: '1px solid #333', display: 'flex', justifyContent: 'center', gap: '8px' }}>
+      <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', backgroundColor: '#0a0f18', fontFamily: 'var(--font-sans)', overflow: 'hidden' }}>
+        <div style={{ padding: '12px', background: '#0d131f', borderBottom: '1px solid rgba(255,255,255,0.1)', display: 'flex', justifyContent: 'center', gap: '12px', zIndex: 20 }}>
           <button 
             onClick={() => setDebugView('visual')}
             style={{ 
-              padding: '4px 12px', 
-              background: debugView === 'visual' ? '#e10600' : '#333',
-              color: 'white',
+              padding: '8px 16px', 
+              background: debugView === 'visual' ? '#dc2626' : 'rgba(255,255,255,0.05)',
+              color: debugView === 'visual' ? 'white' : '#94a3b8',
               border: 'none',
-              borderRadius: '4px',
-              fontSize: '11px',
+              borderRadius: '8px',
+              fontSize: '12px',
               fontWeight: 'bold',
-              cursor: 'pointer'
+              letterSpacing: '0.05em',
+              cursor: 'pointer',
+              boxShadow: debugView === 'visual' ? '0 0 15px rgba(220, 38, 38, 0.5)' : 'none',
+              transition: 'all 0.2s'
             }}
           >
             VISUAL MAP
@@ -62,20 +65,23 @@ function App() {
           <button 
             onClick={() => setDebugView('raw')}
             style={{ 
-              padding: '4px 12px', 
-              background: debugView === 'raw' ? '#e10600' : '#333',
-              color: 'white',
+              padding: '8px 16px', 
+              background: debugView === 'raw' ? '#0284c7' : 'rgba(255,255,255,0.05)',
+              color: debugView === 'raw' ? 'white' : '#94a3b8',
               border: 'none',
-              borderRadius: '4px',
-              fontSize: '11px',
+              borderRadius: '8px',
+              fontSize: '12px',
               fontWeight: 'bold',
-              cursor: 'pointer'
+              letterSpacing: '0.05em',
+              cursor: 'pointer',
+              boxShadow: debugView === 'raw' ? '0 0 15px rgba(2, 132, 199, 0.5)' : 'none',
+              transition: 'all 0.2s'
             }}
           >
             RAW JSON LOG
           </button>
         </div>
-        <div style={{ flex: 1, overflow: 'hidden' }}>
+        <div style={{ flex: 1, overflow: 'hidden', position: 'relative' }}>
           {debugView === 'visual' ? <LiveVisualizer /> : <LiveDirectStream />}
         </div>
       </div>
@@ -91,11 +97,8 @@ function App() {
         </div>
       )}
 
-      <div style={styles.mapLayer}>
-        <TrackMap />
-      </div>
-
-      <div style={styles.uiLayer}>
+      {/* Levý sloupec pro UI Prvky */}
+      <div style={styles.leftPanel}>
         <div style={styles.topNavContainer}>
           <SessionStatus />
           <RacePicker />
@@ -105,70 +108,74 @@ function App() {
           <Leaderboard />
         </div>
       </div>
+
+      {/* Pravý flexibilní sloupec pro mapu */}
+      <div style={styles.mapLayer}>
+        <TrackMap />
+      </div>
     </div>
   )
 }
 
 const styles = {
   appContainer: {
-    position: 'relative',
     height: '100vh',
     width: '100vw',
     overflow: 'hidden',
     backgroundColor: 'var(--color-bg)',
     fontFamily: 'var(--font-sans)',
-  },
-  mapLayer: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    zIndex: 1,
-  },
-  uiLayer: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    zIndex: 10,
-    pointerEvents: 'none', // Let clicks pass through to map where there's no UI
-  },
-  topNavContainer: {
-    position: 'absolute',
-    top: '32px',
-    left: '32px',
-    right: '32px',
     display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    pointerEvents: 'auto',
+    padding: '24px',
+    gap: '24px',
+    boxSizing: 'border-box'
   },
-  leaderboardContainer: {
-    position: 'absolute',
-    top: '110px', // Below topNav
-    left: '32px',
-    bottom: '32px',
-    width: '360px',
+  leftPanel: {
+    width: '400px',
     display: 'flex',
     flexDirection: 'column',
-    pointerEvents: 'auto',
+    gap: '24px',
+    flexShrink: 0,
+    zIndex: 10
+  },
+  mapLayer: {
+    flex: 1,
+    position: 'relative',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: '24px',
+    backgroundColor: 'rgba(15, 20, 35, 0.4)',
+    border: '1px solid rgba(255, 255, 255, 0.05)',
+    overflow: 'hidden',
+    boxShadow: 'inset 0 0 50px rgba(0,0,0,0.5)'
+  },
+  topNavContainer: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '16px'
+  },
+  leaderboardContainer: {
+    flex: 1,
+    display: 'flex',
+    flexDirection: 'column',
+    overflow: 'hidden'
   },
   loadingOverlay: {
     position: 'fixed',
-    top: '16px',
-    right: '16px',
+    top: '24px',
+    right: '24px',
     background: 'rgba(0, 212, 255, 0.15)',
     border: '1px solid #00d4ff',
     borderRadius: '8px',
     padding: '10px 18px',
     zIndex: 1000,
+    backdropFilter: 'blur(4px)'
   },
   loadingText: {
     color: '#00d4ff',
     fontFamily: 'monospace',
     fontSize: '13px',
+    fontWeight: 'bold'
   }
 }
 

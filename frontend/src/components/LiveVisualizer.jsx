@@ -11,6 +11,9 @@ const LiveVisualizer = () => {
   const [trackData, setTrackData] = useState([]);
   const wsRef = useRef(null);
   const rcmRef = useRef(null);
+  
+  const posCount = useRef(0);
+  const timingCount = useRef(0);
 
   useEffect(() => {
     const wsUrl = import.meta.env.VITE_LIVE_WS_URL || 'ws://localhost:8081';
@@ -56,6 +59,7 @@ const LiveVisualizer = () => {
   }, []);
 
   const processPositions = (data) => {
+    posCount.current++;
     // Simulator posílá data přímo v {"Cars": {...}}
     // SignalR posílá nested structure {"Position": [{"Entries": [{"Cars": {...}}]}]}
     
@@ -95,11 +99,13 @@ const LiveVisualizer = () => {
         next[driverNum].y = y;
         next[driverNum].z = z;
       });
+      console.log('POSITIONS PROCESSED. NEXT:', next);
       return next;
     });
   };
 
   const processTiming = (data) => {
+    timingCount.current++;
     if (!data?.Lines) return;
     
     setDrivers(prev => {
@@ -190,80 +196,108 @@ const LiveVisualizer = () => {
   const padding = Math.max(width, height) * 0.1;
 
   return (
-    <div className="flex flex-col h-full bg-slate-950 text-white p-4 font-mono">
+    <div style={styles.container}>
       {/* Header */}
-      <div className="flex justify-between items-center mb-4 border-b border-slate-800 pb-2">
-        <div className="flex items-center gap-3">
-          <Activity className="text-red-500 animate-pulse" />
-          <h1 className="text-xl font-bold uppercase tracking-tighter">
-            {sessionInfo?.Name || 'F1 LIVE VISUALIZER'}
+      <div style={styles.header}>
+        <div style={styles.headerTitleGroup}>
+          <div style={styles.iconBox}>
+            <Activity color="#ef4444" size={16} />
+          </div>
+          <h1 style={styles.title}>
+            {sessionInfo?.Name || 'F1 LIVE PULSE'}
           </h1>
         </div>
-        <div className="flex items-center gap-4 text-xs">
-          <div className={`flex items-center gap-1 ${status === 'connected' ? 'text-emerald-400' : 'text-red-400'}`}>
+        
+        <div style={styles.statusBox}>
+          <div style={status === 'connected' ? styles.statusConnected : styles.statusDisconnected}>
             {status === 'connected' ? <Wifi size={14} /> : <WifiOff size={14} />}
             {status.toUpperCase()}
           </div>
-          <div className="text-slate-500">
-            DRIVERS ON MAP: {Object.values(drivers).filter(d => d.x !== undefined).length}
+          <div style={styles.divider}></div>
+          <div style={styles.trackedInfo}>
+            <Users size={14}/> {Object.values(drivers).filter(d => d.x !== undefined).length} TRACKED
           </div>
-          <div className="text-slate-500">
-            LAST: {lastUpdate ? lastUpdate.toLocaleTimeString() : '--:--:--'}
+          <div style={styles.divider}></div>
+          <div style={styles.timeInfo}>
+            {lastUpdate ? lastUpdate.toLocaleTimeString() : '--:--:--'}
           </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 flex-1 overflow-hidden">
+      <div style={styles.mainGrid}>
         {/* Map View */}
-        <div className="lg:col-span-2 bg-slate-900/50 rounded-xl border border-slate-800 relative overflow-hidden flex items-center justify-center p-8">
-          <div className="absolute top-4 left-4 flex items-center gap-2 text-slate-500 text-xs uppercase">
-            <Map size={14} /> Track Map (Live Point Cloud)
+        <div style={styles.mapContainer}>
+          <div style={styles.mapLabel}>
+            <Map size={12} color="#60a5fa" /> Live Track Radar
           </div>
           
           {Object.values(drivers).filter(d => d.x !== undefined).length === 0 ? (
-            <div className="text-slate-600 text-center">
-              <div className="text-4xl mb-2">📡</div>
-              <p className="text-sm">Čekám na data o pozicích...</p>
-              <p className="text-[10px] mt-1 text-slate-700">(Časy v tabulce by se však měly sypat)</p>
+            <div style={{...styles.loadingContainer, zIndex: 9999}}>
+              <div style={styles.spinner}>
+                <div style={styles.spinnerInner}></div>
+              </div>
+              <p style={styles.loadingText}>Awaiting Telemetry...</p>
             </div>
           ) : (
             <svg 
               viewBox={`${bounds.minX - padding} ${bounds.minY - padding} ${width + padding*2} ${height + padding*2}`}
-              className="w-full h-full max-h-[60vh] drop-shadow-[0_0_15px_rgba(255,255,255,0.1)]"
+              style={styles.mapSvg}
             >
               {/* Track Outline */}
               {trackData.length > 0 && (
                 <polyline
                   points={trackData.map(p => `${p.x},${p.y}`).join(' ')}
                   fill="none"
-                  stroke="#334155"
-                  strokeWidth={Math.max(width, height) * 0.005}
+                  stroke="rgba(255,255,255,0.15)"
+                  strokeWidth={Math.max(width, height) * 0.006}
                   strokeLinejoin="round"
-                  className="transition-all duration-1000"
+                  style={{ filter: 'drop-shadow(0 0 8px rgba(255,255,255,0.1))', transition: 'all 1s' }}
                 />
               )}
 
               {Object.values(drivers).map(driver => (
                 driver.x !== undefined && (
-                  <g key={driver.number}>
+                  <g key={driver.number} style={{ transition: 'all 0.1s linear' }}>
                     <circle
                       cx={driver.x}
                       cy={driver.y}
-                      r={Math.max(width, height) * 0.008} 
+                      r={Math.max(width, height) * 0.015} 
                       fill={driver.color || '#fff'}
-                      className="transition-all duration-200 ease-linear shadow-lg"
+                      opacity="0.3"
                     />
-                    <text
-                      x={driver.x}
-                      y={driver.y - Math.max(width, height) * 0.012}
-                      textAnchor="middle"
-                      fill="white"
-                      fontSize={Math.max(width, height) * 0.015}
-                      fontWeight="bold"
-                      className="pointer-events-none select-none drop-shadow-md"
-                    >
-                      {driver.name || driver.number}
-                    </text>
+                    <circle
+                      cx={driver.x}
+                      cy={driver.y}
+                      r={Math.max(width, height) * 0.007} 
+                      fill={driver.color || '#fff'}
+                      stroke="#0a0f18"
+                      strokeWidth={Math.max(width, height) * 0.002}
+                    />
+                    {/* Label Badge */}
+                    <g transform={`translate(${driver.x}, ${driver.y - Math.max(width, height) * 0.018})`}>
+                       <rect 
+                         x={-(Math.max(width, height) * 0.025)}
+                         y={-(Math.max(width, height) * 0.014)}
+                         width={Math.max(width, height) * 0.05}
+                         height={Math.max(width, height) * 0.016}
+                         rx={Math.max(width, height) * 0.003}
+                         fill="rgba(10, 15, 24, 0.85)"
+                         stroke={driver.color || 'rgba(255,255,255,0.2)'}
+                         strokeWidth={Math.max(width, height) * 0.0008}
+                       />
+                       <text
+                         x="0"
+                         y="0"
+                         textAnchor="middle"
+                         fill="white"
+                         fontSize={Math.max(width, height) * 0.01}
+                         fontFamily="system-ui, sans-serif"
+                         fontWeight="900"
+                         style={{ pointerEvents: 'none', userSelect: 'none', textShadow: '0 2px 4px rgba(0,0,0,0.5)' }}
+                       >
+                         {driver.name || driver.number}
+                       </text>
+                    </g>
                   </g>
                 )
               ))}
@@ -272,114 +306,138 @@ const LiveVisualizer = () => {
         </div>
 
         {/* Timing Table */}
-        <div className="bg-slate-900/40 backdrop-blur-md rounded-xl border border-white/5 flex flex-col overflow-hidden shadow-2xl">
-          <div className="p-3 bg-white/5 border-b border-white/5 flex items-center justify-between">
-            <div className="flex items-center gap-2 text-slate-400 text-[10px] uppercase font-bold tracking-widest">
-              <List size={14} className="text-red-500" /> Live Timing Tower
+        <div style={styles.tableContainer}>
+          <div style={styles.tableHeaderBar}>
+            <div style={styles.tableTitle}>
+              <List size={14} color="#ef4444" /> Timing Tower
             </div>
-            <div className="text-[10px] text-slate-500 font-bold uppercase">
-              Gap to Leader
+            <div style={styles.tableBadge}>
+              Live Interval
             </div>
           </div>
-          <div className="flex-1 overflow-y-auto custom-scrollbar">
-            <table className="w-full text-left">
-              <thead className="sticky top-0 bg-slate-950/80 backdrop-blur-sm text-[10px] text-slate-500 uppercase font-black tracking-tighter">
+          
+          <div style={styles.tableScrollArea}>
+            <table style={styles.table}>
+              <thead style={styles.tableHead}>
                 <tr>
-                  <th className="p-3 w-10 text-center">POS</th>
-                  <th className="p-3">DRIVER</th>
-                  <th className="p-3 text-center">S1</th>
-                  <th className="p-3 text-center">S2</th>
-                  <th className="p-3 text-center">S3</th>
-                  <th className="p-3 text-right">GAP</th>
+                  <th style={{...styles.th, textAlign: 'center', width: '40px'}}>P</th>
+                  <th style={styles.th}>DRIVER</th>
+                  <th style={{...styles.th, textAlign: 'center', width: '56px'}}>S1</th>
+                  <th style={{...styles.th, textAlign: 'center', width: '56px'}}>S2</th>
+                  <th style={{...styles.th, textAlign: 'center', width: '56px'}}>S3</th>
+                  <th style={{...styles.th, textAlign: 'right'}}>GAP</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-white/5">
+              <tbody>
                 {Object.values(drivers)
                   .sort((a, b) => (a.gap || '99:99').localeCompare(b.gap || '99:99'))
                   .map((driver, idx) => (
-                  <tr key={driver.number} className="group hover:bg-white/[0.03] transition-colors border-l-4" style={{ borderLeftColor: driver.color || '#333' }}>
-                    <td className="p-3 text-center font-black text-slate-500 group-hover:text-white transition-colors">
-                      {idx + 1}
-                    </td>
-                    <td className="p-3">
-                       <div className="flex items-center gap-2">
-                         <span className="font-black text-sm tracking-tighter">{driver.name || driver.number}</span>
-                         <span className="text-[9px] px-1 bg-white/10 rounded-sm text-slate-400 font-bold">{driver.number}</span>
+                  <tr key={driver.number} style={styles.tr}>
+                    <td style={{...styles.td, textAlign: 'center', color: 'rgba(255,255,255,0.5)', fontWeight: 900}}>{idx + 1}</td>
+                    <td style={styles.td}>
+                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                         <div style={{ width: '4px', height: '16px', borderRadius: '2px', backgroundColor: driver.color || '#333', boxShadow: `0 0 5px ${driver.color || '#333'}` }}></div>
+                         <span style={{ fontWeight: 900, fontSize: '14px', color: '#fff' }}>{driver.name || driver.number}</span>
+                         <span style={{ fontSize: '10px', padding: '1px 4px', backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: '4px', color: 'rgba(255,255,255,0.8)', fontWeight: 'bold' }}>{driver.number}</span>
                        </div>
-                       <div className="text-[9px] text-slate-600 font-bold uppercase leading-none mt-0.5">{driver.team || '---'}</div>
+                       <div style={{ fontSize: '9px', color: 'rgba(255,255,255,0.5)', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.1em', marginTop: '4px', marginLeft: '12px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '120px' }}>
+                         {driver.team || '---'}
+                       </div>
                     </td>
-                    <td className="p-3 text-center font-mono text-[11px]">
-                      <span className={driver.sectors?.['0']?.PersonalFastest ? 'text-emerald-400 font-bold' : 'text-slate-400'}>
-                        {driver.sectors?.['0']?.Value || '--.--'}
-                      </span>
-                    </td>
-                    <td className="p-3 text-center font-mono text-[11px]">
-                      <span className={driver.sectors?.['1']?.PersonalFastest ? 'text-emerald-400 font-bold' : 'text-slate-400'}>
-                        {driver.sectors?.['1']?.Value || '--.--'}
-                      </span>
-                    </td>
-                    <td className="p-3 text-center font-mono text-[11px]">
-                      <span className={driver.sectors?.['2']?.PersonalFastest ? 'text-emerald-400 font-bold' : 'text-slate-400'}>
-                        {driver.sectors?.['2']?.Value || '--.--'}
-                      </span>
-                    </td>
-                    <td className="p-3 text-right font-mono text-[11px] text-red-500 font-black">
-                      {driver.gap || '---'}
+                    
+                    {/* Sectors */}
+                    {['0', '1', '2'].map(secIdx => {
+                      const sec = driver.sectors?.[secIdx];
+                      const isOverallFastest = sec?.OverallFastest;
+                      const isPersonalFastest = sec?.PersonalFastest;
+                      
+                      let color = 'rgba(255,255,255,0.3)';
+                      let textShadow = 'none';
+                      let fontWeight = 'normal';
+                      
+                      if (isOverallFastest) { color = '#e879f9'; fontWeight = 'bold'; textShadow = '0 0 4px rgba(232,121,249,0.5)'; }
+                      else if (isPersonalFastest) { color = '#34d399'; fontWeight = 'bold'; textShadow = '0 0 4px rgba(52,211,153,0.5)'; }
+                      else if (sec?.Value) { color = 'rgba(250, 204, 21, 0.8)'; }
+                      
+                      return (
+                        <td key={secIdx} style={{...styles.td, textAlign: 'center', fontFamily: 'monospace', fontSize: '11px', color, fontWeight, textShadow}}>
+                          {sec?.Value || '--.--'}
+                        </td>
+                      )
+                    })}
+                    
+                    <td style={{...styles.td, textAlign: 'right'}}>
+                        <div style={styles.gapBadge}>
+                           {driver.gap || '---'}
+                        </div>
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
+            
+            {/* Table Loading State */}
             {Object.values(drivers).length === 0 && (
-              <div className="p-20 text-center text-slate-700 italic text-xs">
-                No timing data yet...
+              <div style={styles.tableLoadingOverlay}>
+                 <Activity size={24} color="rgba(255,255,255,0.2)" style={{marginBottom: '16px'}} />
+                 <span style={{fontSize: '10px', fontWeight: 900, letterSpacing: '0.1em', uppercase: 'true', color: 'rgba(255,255,255,0.3)'}}>
+                    Waiting for telemetry...
+                 </span>
               </div>
             )}
           </div>
         </div>
       </div>
 
-      {/* Bottom Panel: Race Control & Audio */}
-      <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4 h-32">
-          {/* Race Control Logs */}
-          <div className="bg-slate-900/80 rounded-xl border border-slate-800 flex flex-col overflow-hidden">
-              <div className="p-2 border-b border-slate-800 flex items-center justify-between bg-slate-950/50">
-                  <div className="flex items-center gap-2 text-amber-500 text-[10px] uppercase font-bold">
-                      <Activity size={12} /> Race Control Messages
+      {/* Bottom Panel */}
+      <div style={styles.bottomGrid}>
+          {/* Race Control */}
+          <div style={styles.bottomPanel}>
+              <div style={styles.bottomPanelHeader}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#f59e0b', fontSize: '12px', textTransform: 'uppercase', fontWeight: 900, letterSpacing: '0.1em' }}>
+                      <Activity size={14} /> Race Control Messages
                   </div>
               </div>
-              <div className="flex-1 overflow-y-auto p-2 space-y-1 custom-scrollbar" ref={rcmRef}>
+              <div style={styles.bottomPanelContent} ref={rcmRef}>
                   {rcmMessages.length === 0 ? (
-                      <div className="text-slate-700 text-[10px] italic text-center py-4">Žádné zprávy od ředitelství...</div>
+                      <div style={styles.emptyBottomPanel}>No messages yet</div>
                   ) : (
                       rcmMessages.map((m, i) => (
-                        <div key={i} className="text-[10px] flex gap-2 border-b border-slate-800/30 pb-1 last:border-0">
-                            <span className="text-slate-500 shrink-0">{new Date(m.Utc).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
-                            <span className={m.Category === 'Flag' ? 'text-yellow-400' : 'text-slate-300'}>{m.Message}</span>
+                        <div key={i} style={styles.rcmRow}>
+                            <span style={styles.rcmTime}>
+                              {new Date(m.Utc).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                            </span>
+                            <span style={{
+                                fontWeight: 600, 
+                                color: m.Category === 'Flag' ? '#fbbf24' : '#e2e8f0',
+                                textShadow: m.Category === 'Flag' ? '0 0 4px rgba(251,191,36,0.3)' : 'none'
+                             }}>
+                               {m.Message}
+                            </span>
                         </div>
                       ))
                   )}
               </div>
           </div>
 
-          {/* Audio Streams / Team Radio Notifications */}
-          <div className="bg-slate-900/80 rounded-xl border border-slate-800 flex flex-col overflow-hidden">
-              <div className="p-2 border-b border-slate-800 flex items-center justify-between bg-slate-950/50">
-                  <div className="flex items-center gap-2 text-sky-400 text-[10px] uppercase font-bold">
-                    <Activity size={12} className="rotate-90" /> Team Radio (Last 10)
+          {/* Audio Streams */}
+          <div style={styles.bottomPanel}>
+              <div style={styles.bottomPanelHeader}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#38bdf8', fontSize: '12px', textTransform: 'uppercase', fontWeight: 900, letterSpacing: '0.1em' }}>
+                    <Activity size={14} style={{ transform: 'rotate(90deg)' }} /> Team Radio Snippets
                   </div>
               </div>
-              <div className="flex-1 overflow-y-auto p-2 custom-scrollbar">
+              <div style={styles.bottomPanelContent}>
                   {audioStreams.length === 0 ? (
-                      <div className="text-slate-700 text-[10px] italic text-center py-4">Ticho v éteru...</div>
+                      <div style={styles.emptyBottomPanel}>Silence on the radio</div>
                   ) : (
-                      <div className="grid grid-cols-2 gap-1">
+                      <div style={styles.audioGrid}>
                           {audioStreams.map((audio, i) => (
-                              <div key={i} className="bg-slate-800/50 p-1.5 rounded flex items-center gap-2 border border-slate-700/50">
-                                  <div className="w-1.5 h-1.5 rounded-full bg-sky-500 animate-pulse" />
-                                  <div className="flex flex-col">
-                                      <span className="text-[10px] font-bold text-white leading-none">Driver #{audio.DriverNumber}</span>
-                                      <span className="text-[8px] text-slate-500">{new Date(audio.Utc).toLocaleTimeString()}</span>
+                              <div key={i} style={styles.audioCard}>
+                                  <div style={{ width:'10px', height:'10px', borderRadius:'50%', backgroundColor:'#38bdf8', boxShadow:'0 0 8px rgba(56,189,248,0.8)' }} />
+                                  <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                      <span style={{ fontSize: '12px', fontWeight: 900, color: '#fff' }}>CAR {audio.DriverNumber}</span>
+                                      <span style={{ fontSize: '10px', color: 'rgba(255,255,255,0.4)', fontFamily: 'monospace' }}>{new Date(audio.Utc).toLocaleTimeString()}</span>
                                   </div>
                               </div>
                           ))}
@@ -390,6 +448,347 @@ const LiveVisualizer = () => {
       </div>
     </div>
   );
+};
+
+const styles = {
+    container: {
+        display: 'flex',
+        flexDirection: 'column',
+        height: '100%',
+        backgroundColor: '#0a0f18',
+        color: '#e2e8f0',
+        padding: '16px',
+        fontFamily: 'system-ui, sans-serif',
+        overflow: 'hidden',
+        boxSizing: 'border-box'
+    },
+    header: {
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: '16px',
+        paddingBottom: '12px',
+        borderBottom: '1px solid rgba(255,255,255,0.1)',
+        flexShrink: 0
+    },
+    headerTitleGroup: {
+        display: 'flex',
+        alignItems: 'center',
+        gap: '12px'
+    },
+    iconBox: {
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        width: '32px',
+        height: '32px',
+        borderRadius: '50%',
+        backgroundColor: 'rgba(239, 68, 68, 0.1)',
+        border: '1px solid rgba(239, 68, 68, 0.3)'
+    },
+    title: {
+        margin: 0,
+        fontSize: '24px',
+        fontWeight: 900,
+        fontStyle: 'italic',
+        letterSpacing: '-0.05em',
+        color: '#fff',
+        textShadow: '0 2px 4px rgba(0,0,0,0.5)'
+    },
+    statusBox: {
+        display: 'flex',
+        alignItems: 'center',
+        gap: '24px',
+        fontSize: '12px',
+        fontWeight: 'bold',
+        backgroundColor: 'rgba(255,255,255,0.05)',
+        padding: '8px 16px',
+        borderRadius: '8px',
+        border: '1px solid rgba(255,255,255,0.05)'
+    },
+    statusConnected: {
+        display: 'flex',
+        alignItems: 'center',
+        gap: '8px',
+        color: '#34d399',
+        textShadow: '0 0 5px rgba(52,211,153,0.5)'
+    },
+    statusDisconnected: {
+        display: 'flex',
+        alignItems: 'center',
+        gap: '8px',
+        color: '#f87171'
+    },
+    divider: {
+        width: '1px',
+        height: '16px',
+        backgroundColor: 'rgba(255,255,255,0.1)'
+    },
+    trackedInfo: {
+        display: 'flex',
+        alignItems: 'center',
+        gap: '8px',
+        color: '#94a3b8'
+    },
+    timeInfo: {
+        color: '#34d399',
+        fontFamily: 'monospace',
+        fontSize: '11px',
+        textShadow: '0 0 5px rgba(52,211,153,0.3)'
+    },
+    mainGrid: {
+        display: 'grid',
+        gridTemplateColumns: 'minmax(0, 2fr) minmax(0, 1fr)',
+        gap: '24px',
+        flex: 1,
+        minHeight: 0
+    },
+    mapContainer: {
+        backgroundColor: '#0d131f',
+        borderRadius: '16px',
+        border: '1px solid rgba(255,255,255,0.1)',
+        position: 'relative',
+        overflow: 'hidden',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        boxShadow: 'inset 0 0 50px rgba(0,0,0,0.5), 0 20px 25px -5px rgba(0,0,0,0.5)'
+    },
+    mapLabel: {
+        position: 'absolute',
+        top: '16px',
+        left: '16px',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '8px',
+        color: 'rgba(255,255,255,0.4)',
+        fontSize: '10px',
+        fontWeight: 900,
+        textTransform: 'uppercase',
+        letterSpacing: '0.1em',
+        backgroundColor: 'rgba(0,0,0,0.4)',
+        padding: '6px 12px',
+        borderRadius: '9999px',
+        border: '1px solid rgba(255,255,255,0.1)',
+        zIndex: 10
+    },
+    loadingContainer: {
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 10
+    },
+    loadingSpinnerBase: {
+        position: 'relative',
+        width: '96px',
+        height: '96px',
+        marginBottom: '24px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        border: '2px dashed rgba(255,255,255,0.1)',
+        borderRadius: '50%'
+    },
+    loadingTitle: {
+        margin: '0 0 4px 0',
+        fontSize: '12px',
+        fontWeight: 'bold',
+        textTransform: 'uppercase',
+        letterSpacing: '0.1em',
+        color: '#94a3b8'
+    },
+    loadingSubtitle: {
+        margin: 0,
+        fontSize: '10px',
+        color: '#475569',
+        textTransform: 'uppercase',
+        letterSpacing: '0.1em'
+    },
+    mapSvg: {
+        width: '100%',
+        height: '100%',
+        maxHeight: '70vh',
+        filter: 'drop-shadow(0 0 15px rgba(255,255,255,0.05))',
+        zIndex: 10
+    },
+    tableContainer: {
+        backgroundColor: 'rgba(15, 20, 35, 0.8)',
+        borderRadius: '16px',
+        border: '1px solid rgba(255,255,255,0.1)',
+        display: 'flex',
+        flexDirection: 'column',
+        overflow: 'hidden',
+        boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)'
+    },
+    tableHeaderBar: {
+        padding: '16px',
+        backgroundColor: 'rgba(0,0,0,0.3)',
+        borderBottom: '1px solid rgba(255,255,255,0.05)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        flexShrink: 0
+    },
+    tableTitle: {
+        display: 'flex',
+        alignItems: 'center',
+        gap: '8px',
+        color: 'white',
+        fontSize: '12px',
+        textTransform: 'uppercase',
+        fontWeight: 900,
+        letterSpacing: '0.1em',
+        textShadow: '0 2px 4px rgba(0,0,0,0.5)'
+    },
+    tableBadge: {
+        fontSize: '9px',
+        color: '#34d399',
+        fontWeight: 900,
+        textTransform: 'uppercase',
+        letterSpacing: '0.1em',
+        backgroundColor: 'rgba(16, 185, 129, 0.1)',
+        border: '1px solid rgba(16, 185, 129, 0.2)',
+        padding: '4px 8px',
+        borderRadius: '4px'
+    },
+    tableScrollArea: {
+        flex: 1,
+        overflowY: 'auto',
+        position: 'relative'
+    },
+    table: {
+        width: '100%',
+        textAlign: 'left',
+        borderCollapse: 'collapse'
+    },
+    tableHead: {
+        position: 'sticky',
+        top: 0,
+        backgroundColor: '#0f1423',
+        zIndex: 20,
+        fontSize: '9px',
+        color: 'rgba(255,255,255,0.4)',
+        textTransform: 'uppercase',
+        fontWeight: 900,
+        letterSpacing: '0.1em',
+        boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+    },
+    th: {
+        padding: '12px',
+        borderBottom: '1px solid rgba(255,255,255,0.05)',
+        whiteSpace: 'nowrap'
+    },
+    tr: {
+        transition: 'background-color 0.2s',
+        borderBottom: '1px solid rgba(255,255,255,0.02)'
+    },
+    td: {
+        padding: '12px',
+        position: 'relative',
+        zIndex: 10
+    },
+    gapBadge: {
+        display: 'inline-block',
+        padding: '2px 6px',
+        backgroundColor: 'rgba(0,0,0,0.4)',
+        border: '1px solid rgba(255,255,255,0.1)',
+        borderRadius: '4px',
+        fontFamily: 'monospace',
+        fontSize: '11px',
+        fontWeight: 'bold',
+        minWidth: '50px',
+        textAlign: 'center',
+        color: 'rgba(255,255,255,0.9)',
+        boxShadow: '0 1px 2px rgba(0,0,0,0.1)'
+    },
+    tableLoadingOverlay: {
+        position: 'absolute',
+        top: 0, left: 0, right: 0, bottom: 0,
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: 'rgba(15, 20, 35, 0.5)'
+    },
+    bottomGrid: {
+        marginTop: '24px',
+        flexShrink: 0,
+        display: 'grid',
+        gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)',
+        gap: '24px',
+        height: '192px'
+    },
+    bottomPanel: {
+        backgroundColor: 'rgba(15, 20, 35, 0.9)',
+        borderRadius: '16px',
+        border: '1px solid rgba(255,255,255,0.1)',
+        display: 'flex',
+        flexDirection: 'column',
+        overflow: 'hidden',
+        boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)'
+    },
+    bottomPanelHeader: {
+        padding: '12px 16px',
+        borderBottom: '1px solid rgba(255,255,255,0.05)',
+        backgroundColor: 'rgba(0,0,0,0.2)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between'
+    },
+    bottomPanelContent: {
+        flex: 1,
+        overflowY: 'auto',
+        padding: '12px',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '8px'
+    },
+    emptyBottomPanel: {
+        height: '100%',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        color: 'rgba(255,255,255,0.2)',
+        fontSize: '10px',
+        textTransform: 'uppercase',
+        fontWeight: 900,
+        letterSpacing: '0.1em'
+    },
+    rcmRow: {
+        fontSize: '11px',
+        display: 'flex',
+        alignItems: 'flex-start',
+        gap: '16px',
+        paddingBottom: '12px',
+        borderBottom: '1px solid rgba(255,255,255,0.05)',
+        padding: '8px',
+        borderRadius: '4px'
+    },
+    rcmTime: {
+        color: 'rgba(255,255,255,0.4)',
+        flexShrink: 0,
+        fontFamily: 'monospace',
+        backgroundColor: 'rgba(255,255,255,0.05)',
+        padding: '2px 8px',
+        borderRadius: '4px',
+        border: '1px solid rgba(255,255,255,0.05)',
+        fontSize: '10px'
+    },
+    audioGrid: {
+        display: 'grid',
+        gridTemplateColumns: '1fr 1fr',
+        gap: '12px'
+    },
+    audioCard: {
+        backgroundColor: 'rgba(0,0,0,0.4)',
+        padding: '12px',
+        borderRadius: '12px',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '16px',
+        border: '1px solid rgba(255,255,255,0.1)'
+    }
 };
 
 export default LiveVisualizer;
