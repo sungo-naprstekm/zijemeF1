@@ -4,7 +4,9 @@ import time
 import asyncio
 import threading
 import logging
-from typing import Set
+import base64
+import zlib
+from typing import Set, Any, Dict
 
 import websockets
 import requests
@@ -23,6 +25,8 @@ connected_clients: Set[websockets.WebSocketServerProtocol] = set()
 loop = None
 message_queue = None
 
+state_lock = threading.Lock()
+
 
 def broadcast_message_sync(message_str: str):
     """Voláno ze SignalR vlákna pro vložení zprávy do asyncio fronty WS klientům."""
@@ -33,6 +37,9 @@ def broadcast_message_sync(message_str: str):
 
 class ProxySignalRClient:
     """Modifikovaný klient z FastF1, který místo do souboru posílá raw data do WS klientů."""
+    state_cache: Dict[str, Any] = {}
+    rcm_history: list = []
+
     def __init__(self, timeout=60):
         self.timeout = timeout
         self.topics = ["Heartbeat","AudioStreams","DriverList",
@@ -40,6 +47,7 @@ class ProxySignalRClient:
                        "SessionInfo","SessionStatus","TeamRadio",
                        "TimingAppData","TimingStats","TrackStatus",
                        "WeatherData","Position.z","CarData.z",
+                       "Position", "CarData",
                        "ContentStreams","SessionData","TimingData",
                        "TopThree", "RcmSeries", "LapCount"]
         
@@ -51,22 +59,86 @@ class ProxySignalRClient:
         self._is_connected = False
         self._t_last_message = None
 
+    def _decode_data(self, data: str) -> Any:
+        """Dekóduje base64 + zlib dekomprese pro .z pakety."""
+        try:
+            decoded_bytes = base64.b64decode(data, validate=False)
+            # F1 zlib stream nemá hlavičky, používáme -15
+            decompressed = zlib.decompress(decoded_bytes, -zlib.MAX_WBITS)
+            return json.loads(decompressed)
+        except Exception as e:
+            logger.error(f"Decompression error: {e}")
+            return data
+
+    def _process_payload(self, category: str, payload: Any) -> Dict:
+        """Zpracuje payload, dekomprimuje pokud je třeba a vrátí strukturovaný objekt."""
+        if isinstance(payload, str) and category.endswith('.z'):
+            payload = self._decode_data(payload)
+        
+        item = {
+            "category": category,
+            "data": payload,
+            "timestamp": time.time()
+        }
+
+        # Cache vybraných kategorií
+        if category in ["DriverList", "SessionInfo", "SessionStatus", "TrackStatus", "AudioStreams"]:
+            with state_lock:
+                self.state_cache[category] = item
+        
+        if category == "RaceControlMessages":
+            with state_lock:
+                # RaceControlMessages často obsahují seznam 'Messages'
+                messages = payload.get('Messages', []) if isinstance(payload, dict) else []
+                for m in messages:
+                    self.rcm_history.append(m)
+                # Držíme posledních 20 zpráv (in-place mutace aby se předešlo scope chybám)
+                if len(self.rcm_history) > 20:
+                    del self.rcm_history[:-20]
+                
+                self.state_cache["RaceControlMessages"] = {
+                    "category": "RaceControlMessages",
+                    "data": {"Messages": self.rcm_history},
+                    "timestamp": time.time()
+                }
+
+        return item
+
     def _on_message(self, msg):
         self._t_last_message = time.time()
         
+        broadcast_data = []
+
         if isinstance(msg, CompletionMessage):
-            data = []
-            for key in msg.result.keys():
-                data.append([key, json.dumps(msg.result[key]), ''])
-            formatted = '\n'.join(map(str, data))
+            # msg.result je dict, kde klíče jsou kategorie
+            for cat, payload in msg.result.items():
+                broadcast_data.append(self._process_payload(cat, payload))
+        
         elif isinstance(msg, list):
-            formatted = str(msg)
+            # SignalR 'feed' zprávy jsou obvykle list: [kategorie, payload]
+            if len(msg) >= 2:
+                cat = msg[0]
+                payload = msg[1]
+                broadcast_data.append(self._process_payload(cat, payload))
+            else:
+                logger.warning(f"Unexpected list message format: {msg}")
+        
         else:
             logger.error(f"Unknown message type: {type(msg)}")
             return
 
-        # Odeslat raw string broadcast
-        broadcast_message_sync(formatted)
+        # Odeslat každý zpracovaný kus jako samostatný JSON string
+        for item in broadcast_data:
+            cat = item['category']
+            formatted = json.dumps(item)
+            
+            # Logování zajímavých kategorií
+            if cat not in ["Heartbeat", "TimingData"]:
+                logger.info(f"SignalR Category received: {cat}")
+            
+            logger.debug(f"Broadcasting: {cat}")
+            print(".", end="", flush=True) 
+            broadcast_message_sync(formatted)
 
     def _on_connect(self):
         self._is_connected = True
@@ -135,6 +207,15 @@ def signalr_thread_runner():
 async def ws_handler(websocket):
     """Handler pro nová WebSocket spojení ze strany (React frontend)."""
     connected_clients.add(websocket)
+    
+    # Okamžitě poslat aktuální stav z cache
+    with state_lock:
+        for cat in ProxySignalRClient.state_cache:
+            try:
+                await websocket.send(json.dumps(ProxySignalRClient.state_cache[cat]))
+            except:
+                pass
+
     try:
         await websocket.wait_closed()
     finally:

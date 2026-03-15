@@ -5,12 +5,14 @@ import { Leaderboard } from './components/Leaderboard';
 import { RacePicker } from './components/RacePicker';
 import TrackMap from './components/TrackMap';
 import { LiveDirectStream } from './components/LiveDirectStream';
+import LiveVisualizer from './components/LiveVisualizer';
 
 function App() {
   const isLiveDebug = window.location.pathname === '/live-debug';
 
   const initSupabase = useF1Store((state) => state.initSupabase);
   const isLoading = useF1Store((state) => state.isLoading);
+  const [debugView, setDebugView] = React.useState('visual'); // 'visual' nebo 'raw'
 
   useEffect(() => {
     if (isLiveDebug) return;
@@ -39,7 +41,45 @@ function App() {
   }, [initSupabase, isLiveDebug]);
 
   if (isLiveDebug) {
-    return <LiveDirectStream />;
+    return (
+      <div style={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ padding: '8px', background: '#111', borderBottom: '1px solid #333', display: 'flex', justifyContent: 'center', gap: '8px' }}>
+          <button 
+            onClick={() => setDebugView('visual')}
+            style={{ 
+              padding: '4px 12px', 
+              background: debugView === 'visual' ? '#e10600' : '#333',
+              color: 'white',
+              border: 'none',
+              borderRadius: '4px',
+              fontSize: '11px',
+              fontWeight: 'bold',
+              cursor: 'pointer'
+            }}
+          >
+            VISUAL MAP
+          </button>
+          <button 
+            onClick={() => setDebugView('raw')}
+            style={{ 
+              padding: '4px 12px', 
+              background: debugView === 'raw' ? '#e10600' : '#333',
+              color: 'white',
+              border: 'none',
+              borderRadius: '4px',
+              fontSize: '11px',
+              fontWeight: 'bold',
+              cursor: 'pointer'
+            }}
+          >
+            RAW JSON LOG
+          </button>
+        </div>
+        <div style={{ flex: 1, overflow: 'hidden' }}>
+          {debugView === 'visual' ? <LiveVisualizer /> : <LiveDirectStream />}
+        </div>
+      </div>
+    );
   }
 
   return (

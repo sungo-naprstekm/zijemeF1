@@ -48,3 +48,10 @@
 - **Příčina:** Sloupce `broadcast_name` a `compound` byly definovány v Supabase tabulce jako `varchar(5)`. Nicméně FastF1 občas pošle plné slovo `INTERMEDIATE` nebo delší název. 
 - **Odstranění:** Proveden SQL update typů `ALTER COLUMN broadcast_name TYPE text`.
 - **Ponaučení pro příště:** Pro stringové hodnoty a jména generované plynoucími daty (speciálně z neznámých polí web scraping/API) použít pro jednoduchost a bezpečnost rovnou `text` místo striktně vynucovaných omezení `varchar(x)`.
+
+## Chyba - UnboundLocalError `rcm_history` v `live_worker.py`
+- **Datum:** 15. března 2026
+- **Symptom:** Pád SignalR vlákna s chybou `UnboundLocalError: cannot access local variable 'rcm_history' where it is not associated with a value`.
+- **Příčina:** Uvnitř metody `_process_payload` docházelo k re-asignaci globálního seznamu `rcm_history = rcm_history[-20:]`. Python v takovém případě považuje proměnnou za lokální pro celou metodu, což vedlo k chybě při pokusu o `append` ještě před touto asignací.
+- **Odstranění:** Do metody `_process_payload` bylo přidáno `global rcm_history`.
+- **Ponaučení pro příště:** Pokud v metodě třídy přistupuji k modulové (globální) proměnné a zároveň ji v téže metodě chci přepsat (rebind jména), musím ji explicitně deklarovat jako `global`. To platí i pro mutace typu `var = var + something`.
