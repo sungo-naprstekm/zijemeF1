@@ -8,6 +8,7 @@ const LiveVisualizer = () => {
   const [lastUpdate, setLastUpdate] = useState(null);
   const [rcmMessages, setRcmMessages] = useState([]);
   const [audioStreams, setAudioStreams] = useState([]);
+  const [trackData, setTrackData] = useState([]);
   const wsRef = useRef(null);
   const rcmRef = useRef(null);
 
@@ -39,6 +40,8 @@ const LiveVisualizer = () => {
               const next = [...items, ...prev].slice(0, 10);
               return next;
           });
+        } else if (category === 'TrackData') {
+          setTrackData(data || []);
         }
         
         setLastUpdate(new Date());
@@ -53,34 +56,44 @@ const LiveVisualizer = () => {
   }, []);
 
   const processPositions = (data) => {
-    const posArray = data?.Position || (Array.isArray(data) ? data : null);
-    if (!posArray) return;
+    // Simulator posílá data přímo v {"Cars": {...}}
+    // SignalR posílá nested structure {"Position": [{"Entries": [{"Cars": {...}}]}]}
+    
+    let carsData = null;
+    if (data?.Cars) {
+        carsData = data.Cars;
+    } else {
+        const posArray = data?.Position || (Array.isArray(data) ? data : null);
+        if (posArray) {
+            posArray.forEach(entry => {
+                if (entry.Entries) {
+                    entry.Entries.forEach(subEntry => {
+                        if (subEntry.Cars) carsData = subEntry.Cars;
+                    });
+                }
+            });
+        }
+    }
+
+    if (!carsData) return;
     
     setDrivers(prev => {
       const next = { ...prev };
-      posArray.forEach(entry => {
-        if (!entry.Entries) return;
+      Object.keys(carsData).forEach(key => {
+        const car = carsData[key];
+        const driverNum = car.DriverNumber || key;
         
-        entry.Entries.forEach(subEntry => {
-          if (!subEntry.Cars) return;
-          
-          // Cars může být objekt { "44": {...} } nebo pole [{DriverNumber: 44, ...}]
-          const cars = subEntry.Cars;
-          
-          Object.keys(cars).forEach(key => {
-            const carData = cars[key];
-            const driverNum = carData.DriverNumber || key; // Klíč je často číslo jezdce
-            const pos = carData.Channels;
-            
-            if (!pos) return;
-            if (!next[driverNum]) next[driverNum] = { number: driverNum };
-            
-            // Kanály: 0 = X, 1 = Y, 2 = Z (vše v mm)
-            if (pos['0'] !== undefined) next[driverNum].x = pos['0'];
-            if (pos['1'] !== undefined) next[driverNum].y = pos['1'];
-            if (pos['2'] !== undefined) next[driverNum].z = pos['2'];
-          });
-        });
+        // Simulator používá X, Y, Z přímo v objektu auta nebo v Channels
+        const x = car.X !== undefined ? car.X : car.Channels?.['0'];
+        const y = car.Y !== undefined ? car.Y : car.Channels?.['1'];
+        const z = car.Z !== undefined ? car.Z : car.Channels?.['2'];
+        
+        if (x === undefined || y === undefined) return;
+
+        if (!next[driverNum]) next[driverNum] = { number: driverNum };
+        next[driverNum].x = x;
+        next[driverNum].y = y;
+        next[driverNum].z = z;
       });
       return next;
     });
@@ -140,15 +153,35 @@ const LiveVisualizer = () => {
 
   // Výpočet bounding boxu pro mapu
   const getBounds = () => {
-    const vals = Object.values(drivers).filter(d => d.x !== undefined);
-    if (vals.length === 0) return { minX: -10000, maxX: 10000, minY: -10000, maxY: 10000 };
+    const drvVals = Object.values(drivers).filter(d => d.x !== undefined);
+    const trackVals = trackData || [];
     
-    return vals.reduce((acc, d) => ({
+    if (drvVals.length === 0 && trackVals.length === 0) {
+        return { minX: -10000, maxX: 10000, minY: -10000, maxY: 10000 };
+    }
+    
+    const initial = { 
+        minX: Infinity, maxX: -Infinity, minY: Infinity, maxY: -Infinity 
+    };
+
+    const drvBounds = drvVals.reduce((acc, d) => ({
       minX: Math.min(acc.minX, d.x),
       maxX: Math.max(acc.maxX, d.x),
       minY: Math.min(acc.minY, d.y),
       maxY: Math.max(acc.maxY, d.y),
-    }), { minX: Infinity, maxX: -Infinity, minY: Infinity, maxY: -Infinity });
+    }), initial);
+
+    const fullBounds = trackVals.reduce((acc, p) => ({
+        minX: Math.min(acc.minX, p.x),
+        maxX: Math.max(acc.maxX, p.x),
+        minY: Math.min(acc.minY, p.y),
+        maxY: Math.max(acc.maxY, p.y),
+    }), drvBounds);
+
+    // Pokud nemáme track a jen málo jezdců, vrátíme aspoň něco
+    if (fullBounds.minX === Infinity) return { minX: -10000, maxX: 10000, minY: -10000, maxY: 10000 };
+
+    return fullBounds;
   };
 
   const bounds = getBounds();
@@ -198,6 +231,18 @@ const LiveVisualizer = () => {
               viewBox={`${bounds.minX - padding} ${bounds.minY - padding} ${width + padding*2} ${height + padding*2}`}
               className="w-full h-full max-h-[60vh] drop-shadow-[0_0_15px_rgba(255,255,255,0.1)]"
             >
+              {/* Track Outline */}
+              {trackData.length > 0 && (
+                <polyline
+                  points={trackData.map(p => `${p.x},${p.y}`).join(' ')}
+                  fill="none"
+                  stroke="#334155"
+                  strokeWidth={Math.max(width, height) * 0.005}
+                  strokeLinejoin="round"
+                  className="transition-all duration-1000"
+                />
+              )}
+
               {Object.values(drivers).map(driver => (
                 driver.x !== undefined && (
                   <g key={driver.number}>
@@ -206,7 +251,7 @@ const LiveVisualizer = () => {
                       cy={driver.y}
                       r={Math.max(width, height) * 0.008} 
                       fill={driver.color || '#fff'}
-                      className="transition-all duration-300 ease-out"
+                      className="transition-all duration-200 ease-linear shadow-lg"
                     />
                     <text
                       x={driver.x}

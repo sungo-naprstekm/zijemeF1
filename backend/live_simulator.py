@@ -42,15 +42,19 @@ async def ws_handler(websocket):
     connected_clients.add(websocket)
     logger.info(f"Nový klient připojen. Celkem: {len(connected_clients)}")
     
-    # Pošleme úvodní stav, pokud existuje
-    for msg in cached_initial_state.values():
-        await websocket.send(json.dumps(msg))
-        
     try:
+        # Pošleme úvodní stav, pokud existuje
+        for msg in cached_initial_state.values():
+            await websocket.send(json.dumps(msg))
+        
+        # Udržujeme spojení otevřené
         await websocket.wait_closed()
+    except Exception as e:
+        logger.warning(f"Chyba ve WS handleru: {e}")
     finally:
-        connected_clients.add(websocket)
-        connected_clients.remove(websocket)
+        if websocket in connected_clients:
+            connected_clients.remove(websocket)
+        logger.info(f"Klient odpojen. Zbývá: {len(connected_clients)}")
 
 async def run_simulation():
     """Hlavní smyčka simulátoru."""
@@ -71,21 +75,36 @@ async def run_simulation():
     
     # 2. Připravíme SessionInfo
     session_info = {
-        "Meeting": {"Name": "British Grand Prix simulation"},
+        "Meeting": {"Name": f"{session.event['EventName']} Simulation"},
         "ArchiveStatus": {"Status": "GeneratingLive"},
-        "SessionName": "Race"
+        "SessionName": session.name
     }
     cached_initial_state["SessionInfo"] = transform_to_signalr_format("SessionInfo", session_info)
+
+    # 3. Připravíme TrackData (geometrie okruhu z nejrychlejšího kola)
+    try:
+        fastest = session.laps.pick_fastest()
+        tel = fastest.get_telemetry()
+        track_points = []
+        for _, row in tel.iterrows():
+            track_points.append({"x": float(row['X']), "y": float(row['Y'])})
+        
+        cached_initial_state["TrackData"] = transform_to_signalr_format("TrackData", track_points)
+        logger.info(f"Geometrie okruhu připravena ({len(track_points)} bodů)")
+    except Exception as e:
+        logger.warning(f"Nepodařilo se načíst geometrii okruhu: {e}")
 
     logger.info("Simulace spuštěna. Vysílám data...")
 
     # Získáme telemetrii všech jezdců
-    # Pro jednoduchost budeme simulovat po sekundách
-    start_time = session.laps.pick_fastest()['Time'] - timedelta(seconds=60)
-    end_time = session.laps.pick_fastest()['Time'] + timedelta(seconds=300)
+    # Nastavíme okno simulace (např. 5 minut kolem nejrychlejšího kola)
+    ref_time = session.laps.pick_fastest()['Time']
+    start_time = ref_time - timedelta(seconds=30)
+    end_time = ref_time + timedelta(seconds=300)
     
     current_time = start_time
-    step = timedelta(milliseconds=500) # 2Hz jako realita
+    step_ms = 200 # 5Hz pro plynulejší pohyb
+    step = timedelta(milliseconds=step_ms)
 
     while current_time < end_time:
         messages_to_send = []
@@ -111,38 +130,51 @@ async def run_simulation():
             pos_msg = transform_to_signalr_format("Position", {"Cars": cars_pos})
             messages_to_send.append(pos_msg)
 
-        # Simulace TimingData (velmi zjednodušeně pro demo)
+        # Simulace TimingData (vylepšeno pro zobrazení sektorů)
         timing_data = {"Lines": {}}
         for drv_num in session.drivers:
             drv_laps = session.laps.pick_driver(drv_num)
-            last_lap = drv_laps[drv_laps['Time'] <= current_time]
-            if not last_lap.empty:
-                row = last_lap.iloc[-1]
+            # Najdeme poslední dokončené kolo k aktuálnímu času simulace
+            past_laps = drv_laps[drv_laps['Time'] <= current_time]
+            if not past_laps.empty:
+                row = past_laps.iloc[-1]
+                
+                # Formátování času na "M:SS.ms"
+                def fmt_time(t):
+                    if pd.isna(t): return "--.---"
+                    total_seconds = t.total_seconds()
+                    minutes = int(total_seconds // 60)
+                    seconds = total_seconds % 60
+                    return f"{minutes}:{seconds:06.3f}"[2:] if minutes == 0 else f"{minutes}:{seconds:06.3f}"
+
                 timing_data["Lines"][drv_num] = {
-                    "GapToLeader": str(row.get('Time', 'L1')),
+                    "GapToLeader": "LAP 1" if row['LapNumber'] == 1 else f"L{int(row['LapNumber'])}",
                     "Sectors": {
-                        "0": {"Value": str(row.get('Sector1Time', ''))[:5]},
-                        "1": {"Value": str(row.get('Sector2Time', ''))[:5]},
-                        "2": {"Value": str(row.get('Sector3Time', ''))[:5]}
+                        "0": {"Value": fmt_time(row['Sector1Time']), "PersonalFastest": True},
+                        "1": {"Value": fmt_time(row['Sector2Time']), "PersonalFastest": False},
+                        "2": {"Value": fmt_time(row['Sector3Time']), "PersonalFastest": True}
                     }
                 }
         
         if timing_data["Lines"]:
             messages_to_send.append(transform_to_signalr_format("TimingData", timing_data))
 
-        # Broadcast
+        # Broadcast všem aktivním klientům
         if connected_clients and messages_to_send:
-            json_msgs = [json.dumps(m) for m in messages_to_send]
-            # Pošleme vše v jedné dávce každému klientovi
-            for client in list(connected_clients):
+            dead_clients = set()
+            for client in connected_clients:
                 try:
-                    for jm in json_msgs:
-                        await client.send(jm)
-                except:
-                    connected_clients.remove(client)
+                    for msg in messages_to_send:
+                        await client.send(json.dumps(msg))
+                except Exception as e:
+                    logger.warning(f"Nepodařilo se poslat data klientovi: {e}")
+                    dead_clients.add(client)
+            
+            for dead in dead_clients:
+                connected_clients.remove(dead)
 
         current_time += step
-        await asyncio.sleep(0.5)
+        await asyncio.sleep(step_ms / 1000.0)
 
 async def main():
     port = int(os.environ.get("PORT", 8081))

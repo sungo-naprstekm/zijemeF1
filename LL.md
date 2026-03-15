@@ -1,4 +1,9 @@
-# Zaznamenané Chyby a Ponaučení (LL.md)
+# Zaznamenané Chyby a Ponaučení# LL.md - Lessons Learned
+
+## 🎮 Live Simulator (Debugger/Simulator)
+- **WebSocket Race Condition:** Pokud dvě komponenty (např. `LiveVisualizer` a `LiveDirectStream`) současně otevírají WebSocket na stejný port, simulátor (pokud není thread-safe/multi-client) může spojení shazovat. Vyřešeno úpravou `ws_handleru` v `live_simulator.py`, aby korektně spravoval množinu `connected_clients`.
+- **Data Structure Mismatch:** Frontend očekával hluboce zanořenou strukturu SignalR (`Position -> Entries -> Cars`), zatímco simulátor posílal plochý objekt. `processPositions` ve frontendu byl zobecněn, aby zvládl oba formáty.
+- **Timing Data Formatting:** `fastf1` vrací `Timedelta`, které v JSONu končí jako string s mikrosekundami. Je nutné je na backendu naformátovat na `M:SS.ms` pro lidskou čitelnost a stabilitu frontendu.
 
 ## Chyba - Supabase Create Project Limit
 - **Datum:** 13. března 2026
