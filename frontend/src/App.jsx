@@ -4,12 +4,17 @@ import { SessionStatus } from './components/SessionStatus';
 import { Leaderboard } from './components/Leaderboard';
 import { RacePicker } from './components/RacePicker';
 import TrackMap from './components/TrackMap';
+import { LiveDirectStream } from './components/LiveDirectStream';
 
 function App() {
+  const isLiveDebug = window.location.pathname === '/live-debug';
+
   const initSupabase = useF1Store((state) => state.initSupabase);
   const isLoading = useF1Store((state) => state.isLoading);
 
   useEffect(() => {
+    if (isLiveDebug) return;
+
     // Navážeme WebSocket spojení se Supabase při prvním načtení aplikace
     const cleanup = initSupabase();
 
@@ -31,7 +36,11 @@ function App() {
     return () => {
       cleanup.then(unsub => unsub && unsub());
     };
-  }, [initSupabase]);
+  }, [initSupabase, isLiveDebug]);
+
+  if (isLiveDebug) {
+    return <LiveDirectStream />;
+  }
 
   return (
     <div style={styles.appContainer}>

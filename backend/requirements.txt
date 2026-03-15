@@ -4,3 +4,4 @@ numpy>=1.24.0
 supabase>=2.3.0
 python-dotenv
 psutil
+websockets>=12.0
