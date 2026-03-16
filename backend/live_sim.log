@@ -128,3 +128,19 @@ INFO:live_simulator:Nový klient připojen. Celkem: 1
 INFO:live_simulator:Klient odpojen. Zbývá: 0
 INFO:websockets.server:connection open
 INFO:live_simulator:Nový klient připojen. Celkem: 1
+INFO:live_simulator:Klient odpojen. Zbývá: 0
+ERROR:websockets.server:opening handshake failed
+Traceback (most recent call last):
+  File "/Users/mila/zijemeF1/backend/venv/lib/python3.12/site-packages/websockets/asyncio/server.py", line 356, in conn_handler
+    await connection.handshake(
+  File "/Users/mila/zijemeF1/backend/venv/lib/python3.12/site-packages/websockets/asyncio/server.py", line 142, in handshake
+    async with self.send_context(expected_state=CONNECTING):
+  File "/Library/Frameworks/Python.framework/Versions/3.12/lib/python3.12/contextlib.py", line 210, in __aenter__
+    return await anext(self.gen)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/mila/zijemeF1/backend/venv/lib/python3.12/site-packages/websockets/asyncio/connection.py", line 957, in send_context
+    raise self.protocol.close_exc from original_exc
+websockets.exceptions.ConnectionClosedError: no close frame received or sent
+INFO:websockets.server:connection open
+INFO:live_simulator:Nový klient připojen. Celkem: 1
+INFO:live_simulator:Klient odpojen. Zbývá: 0
