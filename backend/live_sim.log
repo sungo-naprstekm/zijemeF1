@@ -71,7 +71,34 @@ INFO:live_simulator:Předpřipravuji data pro všechny jezdce na pozadí (může
   warnings.warn(("pick_driver is deprecated and will be removed"
 /Users/mila/zijemeF1/backend/venv/lib/python3.12/site-packages/fastf1/core.py:3129: FutureWarning: pick_driver is deprecated and will be removed in a future release. Use pick_drivers instead.
   warnings.warn(("pick_driver is deprecated and will be removed"
+INFO:live_simulator:Příprava dokončena. Kontrola dat:
+INFO:live_simulator:Driver 44: 37778 pozic, 52 kol.
+INFO:live_simulator:Driver 1: 37789 pozic, 52 kol.
+INFO:live_simulator:Driver 4: 37833 pozic, 52 kol.
+INFO:live_simulator:Driver 81: 37869 pozic, 52 kol.
+INFO:live_simulator:Driver 55: 38132 pozic, 52 kol.
+INFO:live_simulator:Driver 27: 38192 pozic, 52 kol.
+INFO:live_simulator:Driver 18: 38199 pozic, 52 kol.
+INFO:live_simulator:Driver 14: 38252 pozic, 52 kol.
+INFO:live_simulator:Driver 23: 38288 pozic, 52 kol.
+INFO:live_simulator:Driver 22: 38367 pozic, 52 kol.
+INFO:live_simulator:Driver 2: 38434 pozic, 52 kol.
+INFO:live_simulator:Driver 20: 38443 pozic, 52 kol.
+INFO:live_simulator:Driver 3: 37850 pozic, 51 kol.
+INFO:live_simulator:Driver 16: 38082 pozic, 51 kol.
+INFO:live_simulator:Driver 77: 38094 pozic, 51 kol.
+INFO:live_simulator:Driver 31: 37855 pozic, 50 kol.
+INFO:live_simulator:Driver 11: 37908 pozic, 50 kol.
+INFO:live_simulator:Driver 24: 38182 pozic, 50 kol.
+INFO:live_simulator:Driver 63: 24273 pozic, 33 kol.
+INFO:live_simulator:Driver 10: 726 pozic, 1 kol.
 INFO:live_simulator:Simulace spuštěna. Vysílám data o plynulé frekvenci 10 Hz...
+INFO:live_simulator:START TIME: 8460.121, FIRST TEL TIME (d44): 3495.512
+INFO:live_simulator:CARS POS GENERATED: 11, HAS_NAN_SAMPLE: False
+INFO:live_simulator:CARS POS GENERATED: 11, HAS_NAN_SAMPLE: False
+INFO:live_simulator:CARS POS GENERATED: 11, HAS_NAN_SAMPLE: False
+INFO:live_simulator:CARS POS GENERATED: 11, HAS_NAN_SAMPLE: False
+INFO:live_simulator:CARS POS GENERATED: 9, HAS_NAN_SAMPLE: False
 ERROR:websockets.server:opening handshake failed
 Traceback (most recent call last):
   File "/Users/mila/zijemeF1/backend/venv/lib/python3.12/site-packages/websockets/asyncio/server.py", line 356, in conn_handler
@@ -86,157 +113,18 @@ Traceback (most recent call last):
 websockets.exceptions.ConnectionClosedError: no close frame received or sent
 INFO:websockets.server:connection open
 INFO:live_simulator:Nový klient připojen. Celkem: 1
+INFO:live_simulator:CARS POS GENERATED: 9, HAS_NAN_SAMPLE: False
+INFO:live_simulator:CARS POS GENERATED: 8, HAS_NAN_SAMPLE: False
+INFO:live_simulator:CARS POS GENERATED: 5, HAS_NAN_SAMPLE: False
+INFO:live_simulator:CARS POS GENERATED: 5, HAS_NAN_SAMPLE: False
+INFO:live_simulator:CARS POS GENERATED: 4, HAS_NAN_SAMPLE: False
+INFO:live_simulator:CARS POS GENERATED: 3, HAS_NAN_SAMPLE: False
+INFO:live_simulator:CARS POS GENERATED: 3, HAS_NAN_SAMPLE: False
+INFO:live_simulator:CARS POS GENERATED: 2, HAS_NAN_SAMPLE: False
+INFO:live_simulator:CARS POS GENERATED: 2, HAS_NAN_SAMPLE: False
 INFO:live_simulator:Klient odpojen. Zbývá: 0
 INFO:websockets.server:connection open
 INFO:live_simulator:Nový klient připojen. Celkem: 1
 INFO:live_simulator:Klient odpojen. Zbývá: 0
 INFO:websockets.server:connection open
 INFO:live_simulator:Nový klient připojen. Celkem: 1
-INFO:live_simulator:Klient odpojen. Zbývá: 0
-INFO:websockets.server:connection open
-INFO:live_simulator:Nový klient připojen. Celkem: 1
-INFO:live_simulator:Klient odpojen. Zbývá: 0
-INFO:websockets.server:connection open
-INFO:live_simulator:Nový klient připojen. Celkem: 1
-INFO:live_simulator:Klient odpojen. Zbývá: 0
-ERROR:websockets.server:opening handshake failed
-Traceback (most recent call last):
-  File "/Users/mila/zijemeF1/backend/venv/lib/python3.12/site-packages/websockets/http11.py", line 138, in parse
-    request_line = yield from parse_line(read_line)
-                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/Users/mila/zijemeF1/backend/venv/lib/python3.12/site-packages/websockets/http11.py", line 309, in parse_line
-    line = yield from read_line(MAX_LINE_LENGTH)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/Users/mila/zijemeF1/backend/venv/lib/python3.12/site-packages/websockets/streams.py", line 46, in read_line
-    raise EOFError(f"stream ends after {p} bytes, before end of line")
-EOFError: stream ends after 0 bytes, before end of line
-
-The above exception was the direct cause of the following exception:
-
-Traceback (most recent call last):
-  File "/Users/mila/zijemeF1/backend/venv/lib/python3.12/site-packages/websockets/server.py", line 545, in parse
-    request = yield from Request.parse(
-              ^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/Users/mila/zijemeF1/backend/venv/lib/python3.12/site-packages/websockets/http11.py", line 140, in parse
-    raise EOFError("connection closed while reading HTTP request line") from exc
-EOFError: connection closed while reading HTTP request line
-
-The above exception was the direct cause of the following exception:
-
-Traceback (most recent call last):
-  File "/Users/mila/zijemeF1/backend/venv/lib/python3.12/site-packages/websockets/asyncio/server.py", line 356, in conn_handler
-    await connection.handshake(
-  File "/Users/mila/zijemeF1/backend/venv/lib/python3.12/site-packages/websockets/asyncio/server.py", line 207, in handshake
-    raise self.protocol.handshake_exc
-websockets.exceptions.InvalidMessage: did not receive a valid HTTP request
-INFO:websockets.server:connection open
-INFO:live_simulator:Nový klient připojen. Celkem: 1
-INFO:live_simulator:Klient odpojen. Zbývá: 0
-INFO:websockets.server:connection open
-INFO:live_simulator:Nový klient připojen. Celkem: 1
-INFO:live_simulator:Klient odpojen. Zbývá: 0
-INFO:websockets.server:connection open
-INFO:live_simulator:Nový klient připojen. Celkem: 1
-INFO:live_simulator:Klient odpojen. Zbývá: 0
-INFO:websockets.server:connection open
-INFO:live_simulator:Nový klient připojen. Celkem: 1
-INFO:live_simulator:Klient odpojen. Zbývá: 0
-INFO:websockets.server:connection open
-INFO:live_simulator:Nový klient připojen. Celkem: 1
-INFO:live_simulator:Klient odpojen. Zbývá: 0
-INFO:websockets.server:connection open
-INFO:live_simulator:Nový klient připojen. Celkem: 1
-INFO:websockets.server:connection open
-INFO:live_simulator:Nový klient připojen. Celkem: 2
-INFO:live_simulator:Klient odpojen. Zbývá: 1
-INFO:live_simulator:Klient odpojen. Zbývá: 0
-INFO:websockets.server:connection open
-INFO:live_simulator:Nový klient připojen. Celkem: 1
-WARNING:live_simulator:Chyba ve WS handleru: no close frame received or sent
-INFO:live_simulator:Klient odpojen. Zbývá: 0
-INFO:websockets.server:connection open
-INFO:live_simulator:Nový klient připojen. Celkem: 1
-INFO:live_simulator:Klient odpojen. Zbývá: 0
-INFO:websockets.server:connection open
-INFO:live_simulator:Nový klient připojen. Celkem: 1
-INFO:live_simulator:Klient odpojen. Zbývá: 0
-INFO:websockets.server:connection open
-INFO:live_simulator:Nový klient připojen. Celkem: 1
-INFO:live_simulator:Klient odpojen. Zbývá: 0
-INFO:websockets.server:connection open
-INFO:live_simulator:Nový klient připojen. Celkem: 1
-WARNING:live_simulator:Chyba ve WS handleru: no close frame received or sent
-INFO:live_simulator:Klient odpojen. Zbývá: 0
-INFO:websockets.server:connection open
-INFO:live_simulator:Nový klient připojen. Celkem: 1
-INFO:live_simulator:Klient odpojen. Zbývá: 0
-INFO:websockets.server:connection open
-INFO:live_simulator:Nový klient připojen. Celkem: 1
-INFO:live_simulator:Klient odpojen. Zbývá: 0
-INFO:websockets.server:connection open
-INFO:live_simulator:Nový klient připojen. Celkem: 1
-INFO:live_simulator:Klient odpojen. Zbývá: 0
-INFO:websockets.server:connection open
-INFO:live_simulator:Nový klient připojen. Celkem: 1
-INFO:live_simulator:Klient odpojen. Zbývá: 0
-INFO:websockets.server:connection open
-INFO:live_simulator:Nový klient připojen. Celkem: 1
-INFO:live_simulator:Klient odpojen. Zbývá: 0
-INFO:websockets.server:connection open
-INFO:live_simulator:Nový klient připojen. Celkem: 1
-WARNING:live_simulator:Chyba ve WS handleru: no close frame received or sent
-INFO:live_simulator:Klient odpojen. Zbývá: 0
-INFO:websockets.server:connection open
-INFO:live_simulator:Nový klient připojen. Celkem: 1
-INFO:live_simulator:Klient odpojen. Zbývá: 0
-ERROR:websockets.server:opening handshake failed
-Traceback (most recent call last):
-  File "/Users/mila/zijemeF1/backend/venv/lib/python3.12/site-packages/websockets/asyncio/server.py", line 356, in conn_handler
-    await connection.handshake(
-  File "/Users/mila/zijemeF1/backend/venv/lib/python3.12/site-packages/websockets/asyncio/server.py", line 142, in handshake
-    async with self.send_context(expected_state=CONNECTING):
-  File "/Library/Frameworks/Python.framework/Versions/3.12/lib/python3.12/contextlib.py", line 210, in __aenter__
-    return await anext(self.gen)
-           ^^^^^^^^^^^^^^^^^^^^^
-  File "/Users/mila/zijemeF1/backend/venv/lib/python3.12/site-packages/websockets/asyncio/connection.py", line 957, in send_context
-    raise self.protocol.close_exc from original_exc
-websockets.exceptions.ConnectionClosedError: no close frame received or sent
-INFO:websockets.server:connection open
-INFO:live_simulator:Nový klient připojen. Celkem: 1
-INFO:live_simulator:Klient odpojen. Zbývá: 0
-INFO:websockets.server:connection open
-INFO:live_simulator:Nový klient připojen. Celkem: 1
-WARNING:live_simulator:Chyba ve WS handleru: no close frame received or sent
-INFO:live_simulator:Klient odpojen. Zbývá: 0
-INFO:websockets.server:connection open
-INFO:live_simulator:Nový klient připojen. Celkem: 1
-INFO:live_simulator:Klient odpojen. Zbývá: 0
-INFO:websockets.server:connection open
-INFO:live_simulator:Nový klient připojen. Celkem: 1
-ERROR:websockets.server:opening handshake failed
-Traceback (most recent call last):
-  File "/Users/mila/zijemeF1/backend/venv/lib/python3.12/site-packages/websockets/asyncio/server.py", line 356, in conn_handler
-    await connection.handshake(
-  File "/Users/mila/zijemeF1/backend/venv/lib/python3.12/site-packages/websockets/asyncio/server.py", line 142, in handshake
-    async with self.send_context(expected_state=CONNECTING):
-  File "/Library/Frameworks/Python.framework/Versions/3.12/lib/python3.12/contextlib.py", line 210, in __aenter__
-    return await anext(self.gen)
-           ^^^^^^^^^^^^^^^^^^^^^
-  File "/Users/mila/zijemeF1/backend/venv/lib/python3.12/site-packages/websockets/asyncio/connection.py", line 957, in send_context
-    raise self.protocol.close_exc from original_exc
-websockets.exceptions.ConnectionClosedError: no close frame received or sent
-INFO:live_simulator:Klient odpojen. Zbývá: 0
-INFO:websockets.server:connection open
-INFO:live_simulator:Nový klient připojen. Celkem: 1
-ERROR:websockets.server:opening handshake failed
-Traceback (most recent call last):
-  File "/Users/mila/zijemeF1/backend/venv/lib/python3.12/site-packages/websockets/asyncio/server.py", line 356, in conn_handler
-    await connection.handshake(
-  File "/Users/mila/zijemeF1/backend/venv/lib/python3.12/site-packages/websockets/asyncio/server.py", line 142, in handshake
-    async with self.send_context(expected_state=CONNECTING):
-  File "/Library/Frameworks/Python.framework/Versions/3.12/lib/python3.12/contextlib.py", line 210, in __aenter__
-    return await anext(self.gen)
-           ^^^^^^^^^^^^^^^^^^^^^
-  File "/Users/mila/zijemeF1/backend/venv/lib/python3.12/site-packages/websockets/asyncio/connection.py", line 957, in send_context
-    raise self.protocol.close_exc from original_exc
-websockets.exceptions.ConnectionClosedError: no close frame received or sent

@@ -104,15 +104,15 @@ async def run_simulation():
             laps = session.laps.pick_driver(drv_num)
             tel = laps.get_telemetry()
             
-            # Předpočítáme time sekundy (odstraníme NaN)
-            tel = tel[['Time', 'X', 'Y', 'Z']].dropna()
+            # Předpočítáme time sekundy (odstraníme NaN pro XY, Z může chybět)
+            tel = tel[['SessionTime', 'X', 'Y']].dropna()
             tel_records = []
             for _, row in tel.iterrows():
                 tel_records.append({
-                    'time_sec': row['Time'].total_seconds(),
+                    'time_sec': row['SessionTime'].total_seconds(),
                     'X': float(row['X']),
                     'Y': float(row['Y']),
-                    'Z': float(row.get('Z', 0))
+                    'Z': 0.0 # Z není nutné
                 })
             drv_telemetry[drv_num] = tel_records
             
@@ -131,13 +131,12 @@ async def run_simulation():
             drv_telemetry[drv_num] = []
             drv_laps_data[drv_num] = []
 
+    logger.info(f"Příprava dokončena. Kontrola dat:")
+    for d, t_list in drv_telemetry.items():
+        logger.info(f"Driver {d}: {len(t_list)} pozic, {len(drv_laps_data.get(d, []))} kol.")
+        
     logger.info("Simulace spuštěna. Vysílám data o plynulé frekvenci 10 Hz...")
 
-    ref_time = session.laps.pick_fastest()['Time']
-    start_time_sec = (ref_time - timedelta(seconds=30)).total_seconds()
-    end_time_sec = (ref_time + timedelta(seconds=300)).total_seconds()
-    
-    current_time_sec = start_time_sec
     step_ms = 100 # 10Hz pro super plynulý pohyb
     step_sec = step_ms / 1000.0
 
@@ -148,90 +147,104 @@ async def run_simulation():
         s = ts % 60
         return f"{m}:{s:06.3f}"[2:] if m == 0 else f"{m}:{s:06.3f}"
 
-    while current_time_sec < end_time_sec:
-        try:
-            messages_to_send = []
-            
-            # Simulace pozic přes lineární interpolaci bodů telemetrie
-            cars_pos = {}
-            for drv_num, tel_list in drv_telemetry.items():
-                if not tel_list:
-                    continue
-                idx = drv_indices[drv_num]
+    while True:
+        ref_time = session.laps.pick_fastest()['Time']
+        start_time_sec = (ref_time - timedelta(seconds=30)).total_seconds()
+        end_time_sec = (ref_time + timedelta(seconds=300)).total_seconds()
+        
+        current_time_sec = start_time_sec
+        drv_indices = {drv: 0 for drv in session.drivers} # Reset indexů!
+        
+        logger.info(f"START TIME: {current_time_sec}, FIRST TEL TIME (d44): {drv_telemetry['44'][0]['time_sec'] if '44' in drv_telemetry and drv_telemetry['44'] else 'NONE'}")
+        
+        while current_time_sec < end_time_sec:
+            try:
+                messages_to_send = []
                 
-                # Najdeme index nejbližšího bodu v budoucnosti
-                while idx < len(tel_list) and tel_list[idx]['time_sec'] < current_time_sec:
-                    idx += 1
-                drv_indices[drv_num] = idx
-                
-                if idx > 0 and idx < len(tel_list):
-                    p1 = tel_list[idx-1]
-                    p2 = tel_list[idx]
-                    t_diff = p2['time_sec'] - p1['time_sec']
-                    if 0 < t_diff < 5.0:  # Rozumný rozestup dat
-                        ratio = (current_time_sec - p1['time_sec']) / t_diff
-                        x = p1['X'] + (p2['X'] - p1['X']) * ratio
-                        y = p1['Y'] + (p2['Y'] - p1['Y']) * ratio
-                        z = p1['Z'] + (p2['Z'] - p1['Z']) * ratio
-                        cars_pos[drv_num] = {"X": x, "Y": y, "Z": z}
-                    else:
-                        cars_pos[drv_num] = {"X": p1['X'], "Y": p1['Y'], "Z": p1['Z']}
-            
-            if cars_pos:
-                messages_to_send.append(transform_to_signalr_format("Position", {"Cars": cars_pos}))
-
-            # TimingData ze zachecovaných kol (bez náročího hledání přes Pandas)
-            timing_data = {"Lines": {}}
-            for drv_num, laps_list in drv_laps_data.items():
-                if not laps_list:
-                    continue
-                # Najdeme poslední kolo (time_sec <= current)
-                last_lap = None
-                for lap in laps_list:
-                    if lap['time_sec'] <= current_time_sec:
-                        last_lap = lap
-                    else:
-                        break
+                # Simulace pozic přes lineární interpolaci bodů telemetrie
+                cars_pos = {}
+                for drv_num, tel_list in drv_telemetry.items():
+                    if not tel_list:
+                        continue
+                    idx = drv_indices[drv_num]
                     
-                if last_lap:
-                    lapNum = 1
-                    try:
-                        if not pd.isna(last_lap['LapNumber']):
-                            lapNum = int(last_lap['LapNumber'])
-                    except:
-                        pass
-                        
-                    timing_data["Lines"][drv_num] = {
-                        "GapToLeader": "LAP 1" if lapNum == 1 else f"L{lapNum}",
-                        "Sectors": {
-                            "0": {"Value": fmt_time(last_lap['Sector1Time']), "PersonalFastest": True},
-                            "1": {"Value": fmt_time(last_lap['Sector2Time']), "PersonalFastest": False},
-                            "2": {"Value": fmt_time(last_lap['Sector3Time']), "PersonalFastest": True}
-                        }
-                    }
-            
-            if timing_data["Lines"]:
-                messages_to_send.append(transform_to_signalr_format("TimingData", timing_data))
-
-            # Broadcast všem aktivním klientům
-            if connected_clients and messages_to_send:
-                dead_clients = set()
-                for client in connected_clients:
-                    try:
-                        for msg in messages_to_send:
-                            await client.send(json.dumps(msg))
-                    except Exception:
-                        dead_clients.add(client)
+                    # Najdeme index nejbližšího bodu v budoucnosti
+                    while idx < len(tel_list) and tel_list[idx]['time_sec'] < current_time_sec:
+                        idx += 1
+                    drv_indices[drv_num] = idx
+                    
+                    if idx > 0 and idx < len(tel_list):
+                        p1 = tel_list[idx-1]
+                        p2 = tel_list[idx]
+                        t_diff = p2['time_sec'] - p1['time_sec']
+                        if 0 < t_diff < 5.0:  # Rozumný rozestup dat
+                            ratio = float((current_time_sec - p1['time_sec']) / t_diff)
+                            x = float(p1['X'] + (p2['X'] - p1['X']) * ratio)
+                            y = float(p1['Y'] + (p2['Y'] - p1['Y']) * ratio)
+                            z = float(p1['Z'] + (p2['Z'] - p1['Z']) * ratio)
+                            cars_pos[drv_num] = {"X": x, "Y": y, "Z": z}
+                        else:
+                            cars_pos[drv_num] = {"X": float(p1['X']), "Y": float(p1['Y']), "Z": float(p1['Z'])}
                 
-                for dead in dead_clients:
-                    connected_clients.remove(dead)
+                if cars_pos:
+                    if int(current_time_sec * 10) % 50 == 0:
+                        import math
+                        sample = list(cars_pos.values())[0] if cars_pos else None
+                        has_nan = any(math.isnan(v) for v in sample.values()) if sample else False
+                        logger.info(f"CARS POS GENERATED: {len(cars_pos)}, HAS_NAN_SAMPLE: {has_nan}")
+                    messages_to_send.append(transform_to_signalr_format("Position", {"Cars": cars_pos}))
 
-        except Exception as e:
-            logger.error(f"FATAL ERROR IN RUN_SIMULATION LOOP: {e}", exc_info=True)
-            
-        # Níže stojící sekce běží v rámci whilu vždy
-        current_time_sec += step_sec
-        await asyncio.sleep(step_sec)
+                # TimingData ze zachecovaných kol (bez náročího hledání přes Pandas)
+                timing_data = {"Lines": {}}
+                for drv_num, laps_list in drv_laps_data.items():
+                    if not laps_list:
+                        continue
+                    # Najdeme poslední kolo (time_sec <= current)
+                    last_lap = None
+                    for lap in laps_list:
+                        if lap['time_sec'] <= current_time_sec:
+                            last_lap = lap
+                        else:
+                            break
+                        
+                    if last_lap:
+                        lapNum = 1
+                        try:
+                            if not pd.isna(last_lap['LapNumber']):
+                                lapNum = int(last_lap['LapNumber'])
+                        except:
+                            pass
+                            
+                        timing_data["Lines"][drv_num] = {
+                            "GapToLeader": "LAP 1" if lapNum == 1 else f"L{lapNum}",
+                            "Sectors": {
+                                "0": {"Value": fmt_time(last_lap['Sector1Time']), "PersonalFastest": True},
+                                "1": {"Value": fmt_time(last_lap['Sector2Time']), "PersonalFastest": False},
+                                "2": {"Value": fmt_time(last_lap['Sector3Time']), "PersonalFastest": True}
+                            }
+                        }
+                
+                if timing_data["Lines"]:
+                    messages_to_send.append(transform_to_signalr_format("TimingData", timing_data))
+
+                if connected_clients and messages_to_send:
+                    dead_clients = set()
+                    for client in connected_clients:
+                        try:
+                            for msg in messages_to_send:
+                                await client.send(json.dumps(msg))
+                        except Exception as e:
+                            logger.error(f"ZABITO PŘI ODESLÁNÍ WS: {e} | MSG: {msg}")
+                            dead_clients.add(client)
+                    
+                    for dead in dead_clients:
+                        connected_clients.remove(dead)
+
+            except Exception as e:
+                logger.error(f"FATAL ERROR IN RUN_SIMULATION LOOP: {e}", exc_info=True)
+                
+            current_time_sec += step_sec
+            await asyncio.sleep(step_sec)
 
 async def main():
     port = int(os.environ.get("PORT", 8081))
