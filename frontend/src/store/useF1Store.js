@@ -45,6 +45,17 @@ export const useF1Store = create((set, get) => ({
     const { data: lbData } = await supabase.from('leaderboard').select('*').order('position', { ascending: true });
     if (lbData) set({ leaderboard: lbData });
 
+    const { data: telemetryData } = await supabase.from('telemetry').select('*');
+    if (telemetryData) {
+      const initialPositions = {};
+      telemetryData.forEach(t => {
+        if (t.x_pos !== null && t.y_pos !== null) {
+          initialPositions[t.driver_number] = { x: t.x_pos, y: t.y_pos };
+        }
+      });
+      set({ positions: initialPositions });
+    }
+
     get().fetchTrackOutline();
 
     const channels = supabase.channel('custom-all-channel')

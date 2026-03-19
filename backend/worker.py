@@ -640,10 +640,6 @@ async def run_replay(year: int, round_name: str):
 
                     payloads = []
                     for abbr, pos_df in driver_pos_data.items():
-                        # Omezíme v tomto MVP telemetrii jen na VER a LEC (optimalizace DB a realtime fronty)
-                        if abbr not in ['VER', 'LEC']:
-                            continue
-
                         driver_num = abbr_to_num.get(abbr)
                         if not driver_num:
                             continue
