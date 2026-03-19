@@ -8,6 +8,7 @@ import { LiveDirectStream } from './components/LiveDirectStream';
 import LiveVisualizer from './components/LiveVisualizer';
 import { StartupModal } from './components/StartupModal';
 import { StatisticsView } from './components/StatisticsView';
+import { EventLogPanel } from './components/EventLogPanel';
 
 function App() {
   const isLiveDebug = window.location.pathname === '/live-debug';
@@ -123,6 +124,8 @@ function App() {
       <div style={styles.mapLayer}>
         <TrackMap />
       </div>
+
+      <EventLogPanel />
     </div>
   )
 }

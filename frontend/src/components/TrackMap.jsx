@@ -57,7 +57,7 @@ const TrackMap = () => {
               <g 
                 key={driverNum} 
                 className="driver-dot-group"
-                style={{ transform: `translate(${pos.x}px, ${pos.y}px)` }}
+                transform={`translate(${pos.x}, ${pos.y})`}
               >
                 <circle
                   cx="0"

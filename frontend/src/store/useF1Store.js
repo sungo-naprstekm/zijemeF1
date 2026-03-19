@@ -14,6 +14,11 @@ export const useF1Store = create((set, get) => ({
   trackOutline: null, // { points: [{x, y}], circuit_name: string }
   isLoading: false,
   currentSession: null,
+  eventLogs: [],
+  addEventLog: (msg) => {
+    const time = new Date().toLocaleTimeString('cs-CZ', { hour12: false });
+    set((state) => ({ eventLogs: [{ id: Date.now() + Math.random(), time, msg }, ...state.eventLogs].slice(0, 50) }));
+  },
 
   // Vymazání lokálního stavu při přepnutí závodu
   resetForNewSession: () => {
@@ -64,6 +69,7 @@ export const useF1Store = create((set, get) => ({
           console.log("[Supabase Realtime] Event přijat:", payload);
           if (payload.eventType === 'DELETE') return;
           if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+            get().addEventLog(`🚦 Závod: Vlajka ${payload.new.flag} (Kolo ${payload.new.current_lap})`);
             set({ sessionState: payload.new, isLoading: false });
           }
         }
@@ -78,6 +84,7 @@ export const useF1Store = create((set, get) => ({
             return;
           }
           if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+            get().addEventLog(`⏱️ Změna pořadí: Vůz #${payload.new.driver_number} -> P${payload.new.position}`);
             set((state) => {
               const exists = state.leaderboard.find(l => l.driver_number === payload.new.driver_number);
               const newList = exists
@@ -120,6 +127,7 @@ export const useF1Store = create((set, get) => ({
           console.log("[Supabase Realtime] Track_outline update:", payload);
           if (payload.eventType === 'DELETE') return;
           if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+            get().addEventLog(`🗺️ Obrys trati z DB aktualizován.`);
             if (payload.new) {
                // PostgreSQL neodesílá TOAST (velké JSON objekty) u Realtime updatů, pokud nejsou izolovány
                if (!payload.new.points || payload.new.points.length === 0 || typeof payload.new.points === 'string') {
