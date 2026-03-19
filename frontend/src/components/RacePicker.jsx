@@ -4,10 +4,10 @@ import { useF1Store } from '../store/useF1Store';
 const YEARS = [2026, 2025, 2024, 2023, 2022, 2021];
 
 export function RacePicker() {
-  const [year, setYear] = useState(2023);
+  const [year, setYear] = useState(Number(localStorage.getItem('f1_year')) || 2023);
   const [races, setRaces] = useState([]);
-  const [selectedRound, setSelectedRound] = useState('');
-  const [startLap, setStartLap] = useState(1);
+  const [selectedRound, setSelectedRound] = useState(localStorage.getItem('f1_round') || '');
+  const [startLap, setStartLap] = useState(Number(localStorage.getItem('f1_lap')) || 1);
   const [playbackState, setPlaybackState] = useState('paused');
   const [loading, setLoading] = useState(false);
   const [loadingRaces, setLoadingRaces] = useState(false);
@@ -38,6 +38,10 @@ export function RacePicker() {
     setLoading(true);
     setStatus('Načítám a připravuji replay...');
     
+    localStorage.setItem('f1_year', year);
+    localStorage.setItem('f1_round', selectedRound);
+    localStorage.setItem('f1_lap', startLap);
+
     // Okamžitý reset frontendu
     useF1Store.getState().setSession(year, selectedRound);
     

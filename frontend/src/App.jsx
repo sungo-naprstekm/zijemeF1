@@ -6,6 +6,8 @@ import { RacePicker } from './components/RacePicker';
 import TrackMap from './components/TrackMap';
 import { LiveDirectStream } from './components/LiveDirectStream';
 import LiveVisualizer from './components/LiveVisualizer';
+import { StartupModal } from './components/StartupModal';
+import { StatisticsView } from './components/StatisticsView';
 
 function App() {
   const isLiveDebug = window.location.pathname === '/live-debug';
@@ -13,6 +15,7 @@ function App() {
   const initSupabase = useF1Store((state) => state.initSupabase);
   const isLoading = useF1Store((state) => state.isLoading);
   const [debugView, setDebugView] = React.useState('visual'); // 'visual' nebo 'raw'
+  const [appMode, setAppMode] = React.useState('menu'); // 'menu', 'simulation', 'statistics'
 
   useEffect(() => {
     if (isLiveDebug) return;
@@ -27,12 +30,6 @@ function App() {
       fetch(renderUrl).catch(() => {
         // Ignorujeme chybu (CORS atd.), hlavně že požadavek odešel a Render se probudí
       });
-      // Zajistíme, že se při startu aplikace přehrávání zastaví (čeká na akci uživatele)
-      fetch(`${renderUrl}/playback`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'pause' })
-      }).catch(() => {});
     }
 
     return () => {
@@ -86,6 +83,19 @@ function App() {
         </div>
       </div>
     );
+  }
+
+  if (appMode === 'menu') {
+    return (
+      <StartupModal 
+        onStartSimulation={() => setAppMode('simulation')} 
+        onShowStats={() => setAppMode('statistics')} 
+      />
+    );
+  }
+
+  if (appMode === 'statistics') {
+    return <StatisticsView onBack={() => setAppMode('menu')} />;
   }
 
   return (
