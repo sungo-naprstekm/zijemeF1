@@ -5,3 +5,5 @@ supabase>=2.3.0
 python-dotenv
 psutil
 websockets>=12.0
+fastapi>=0.110.0
+uvicorn[standard]>=0.29.0

@@ -5,8 +5,6 @@ import asyncio
 import threading
 import gc
 import psutil
-from urllib.parse import urlparse, parse_qs
-from http.server import BaseHTTPRequestHandler, HTTPServer
 from datetime import date
 from dotenv import load_dotenv
 import pandas as pd
@@ -14,6 +12,10 @@ import numpy as np
 import fastf1
 from fastf1 import plotting
 from supabase import create_client, Client
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
+import uvicorn
 
 # ──────────────────────────────────────────────
 # Memory helper
@@ -24,7 +26,7 @@ def print_memory_usage(tag=""):
     print(f"[MEMORY] {tag} - RAM: {mem:.2f} MB")
 
 # ──────────────────────────────────────────────
-# Globální stav (sdílený mezi HTTP serverem a asyncio smyčkou)
+# Globální stav (sdílený mezi HTTP API serverem a asyncio smyčkou)
 # ──────────────────────────────────────────────
 current_config = {
     "year": None, 
@@ -32,7 +34,7 @@ current_config = {
     "start_lap": 1,
     "playback_state": "idle"
 }
-restart_event = threading.Event()   # HTTP handler nastaví → main_loop restartuje replay
+restart_event = threading.Event()   # API (uvnitř threadpoolu) nastaví → main_loop restartuje replay
 state_lock = threading.Lock()
 
 app_logs = []
@@ -71,96 +73,84 @@ def get_races_for_year(year):
         return {"error": str(e)}
 
 # ──────────────────────────────────────────────
-# HTTP API server pro Render.com (Free Web Service)
+# FastAPI server pro Render.com a WebSockety (nahrazení http.server)
 # ──────────────────────────────────────────────
-class ApiHandler(BaseHTTPRequestHandler):
-    def _send_json(self, code, data):
-        body = json.dumps(data, ensure_ascii=False).encode()
-        self.send_response(code)
-        self.send_header('Content-Type', 'application/json; charset=utf-8')
-        self.send_header('Access-Control-Allow-Origin', '*')
-        self.end_headers()
-        self.wfile.write(body)
 
-    def do_OPTIONS(self):
-        self.send_response(200)
-        self.send_header('Access-Control-Allow-Origin', '*')
-        self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
-        self.send_header('Access-Control-Allow-Headers', 'Content-Type')
-        self.end_headers()
+app = FastAPI()
 
-    def do_GET(self):
-        parsed = urlparse(self.path)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
-        if parsed.path == '/':
-            self._send_json(200, {"status": "ALIVE", "config": current_config})
+connected_websockets = set()
 
-        elif parsed.path == '/current-session':
-            with state_lock:
-                config_copy = current_config.copy()
-            self._send_json(200, config_copy)
+@app.get("/")
+def read_root():
+    return {"status": "ALIVE", "config": current_config}
 
-        elif parsed.path == '/logs':
-            with state_lock:
-                logs_copy = list(app_logs)
-            self._send_json(200, {"logs": logs_copy})
+@app.get("/current-session")
+def read_current_session():
+    with state_lock:
+        return current_config.copy()
 
-        elif parsed.path == '/schedule':
-            params = parse_qs(parsed.query)
-            year = int(params.get('year', [2023])[0])
-            races = get_races_for_year(year)
-            self._send_json(200, races)
+@app.get("/logs")
+def read_logs():
+    with state_lock:
+        return {"logs": list(app_logs)}
 
-        else:
-            self._send_json(404, {"error": "Not found"})
+@app.get("/schedule")
+def read_schedule(year: int = 2023):
+    return get_races_for_year(year)
 
-    def do_POST(self):
-        if self.path == '/set-session':
-            content_length = int(self.headers['Content-Length'])
-            post_data = self.rfile.read(content_length)
-            req = json.loads(post_data.decode('utf-8'))
-            
-            year = req.get('year')
-            round_name = req.get('round')
-            start_lap = req.get('start_lap', 1)
-            
-            with state_lock:
-                current_config['year'] = year
-                current_config['round'] = round_name
-                current_config['start_lap'] = start_lap
-                current_config['playback_state'] = "paused"
-            
-            restart_event.set()   # Signál pro main_loop
-            print(f"[API] Nová konfigurace: {year} – {round_name} (Od kola: {start_lap})")
-            add_log(f"Přijat požadavek na spuštění {year} - {round_name}.")
-            self._send_json(200, {"status": "ok", "config": current_config})
-        
-        elif self.path == '/playback':
-            content_length = int(self.headers['Content-Length'])
-            post_data = self.rfile.read(content_length)
-            req = json.loads(post_data.decode('utf-8'))
-            action = req.get('action')
-            
-            if action in ['play', 'pause']:
-                with state_lock:
-                    current_config['playback_state'] = action
-                print(f"[API] Playback state změněn na: {action}")
-                add_log(f"Uživatel změnil simulaci na {action}.")
-                self._send_json(200, {"status": "ok", "state": action})
-            else:
-                self._send_json(400, {"error": "Invalid action"})
-                
-        else:
-            self._send_json(404, {"error": "Not found"})
+class SessionRequest(BaseModel):
+    year: int
+    round: str
+    start_lap: int = 1
 
-    def log_message(self, format, *args):
-        return  # Ticho v logu
+@app.post("/set-session")
+def set_session(req: SessionRequest):
+    with state_lock:
+        current_config['year'] = req.year
+        current_config['round'] = req.round
+        current_config['start_lap'] = req.start_lap
+        current_config['playback_state'] = "paused"
+    restart_event.set()
+    print(f"[API] Nová konfigurace: {req.year} – {req.round} (Od kola: {req.start_lap})")
+    add_log(f"Přijat požadavek na spuštění {req.year} - {req.round}.")
+    return {"status": "ok", "config": current_config}
 
-def run_api_server():
-    port = int(os.environ.get('PORT', 8080))
-    server = HTTPServer(('0.0.0.0', port), ApiHandler)
-    print(f"API server běží na portu {port}")
-    server.serve_forever()
+class PlaybackRequest(BaseModel):
+    action: str
+
+@app.post("/playback")
+def do_playback(req: PlaybackRequest):
+    if req.action in ['play', 'pause']:
+        with state_lock:
+            current_config['playback_state'] = req.action
+        print(f"[API] Playback state změněn na: {req.action}")
+        add_log(f"Uživatel změnil simulaci na {req.action}.")
+        return {"status": "ok", "state": req.action}
+    return {"error": "Invalid action"}
+
+@app.websocket("/ws/telemetry")
+async def websocket_endpoint(websocket: WebSocket):
+    await websocket.accept()
+    connected_websockets.add(websocket)
+    try:
+        while True:
+            # Udržení spojení (klient si může poslat ping testy)
+            data = await websocket.receive_text()
+    except WebSocketDisconnect:
+        if websocket in connected_websockets:
+            connected_websockets.remove(websocket)
+    except Exception as e:
+        print(f"WebSocket chyba: {e}")
+        if websocket in connected_websockets:
+            connected_websockets.remove(websocket)
 
 
 # ──────────────────────────────────────────────
@@ -324,7 +314,8 @@ async def run_replay(year: int, round_name: str):
         session = fastf1.get_session(year, round_name, 'R')
         # messages=True pro vlajky (RE-3)
         # telemetry=True je nutné pro načtení pozičních dat (X, Y) obrysu trati a jezdců
-        session.load(telemetry=True, weather=True, laps=True, messages=True)
+        # Obaleno do asynchronního poolu, jelikož knihovna FastF1 nativně blokuje
+        await asyncio.to_thread(session.load, telemetry=True, weather=True, laps=True, messages=True)
     except Exception as e:
         add_log(f"Chyba parsování FastF1: {e}")
         return
@@ -760,10 +751,16 @@ async def run_replay(year: int, round_name: str):
                         except Exception:
                             continue
 
-                    if payloads:
-                        asyncio.create_task(asyncio.to_thread(
-                            fire_and_forget_upsert, "telemetry", payloads
-                        ))
+                    if payloads and connected_websockets:
+                        msg_str = json.dumps({"category": "Position", "data": payloads})
+                        disconnected = set()
+                        for ws in connected_websockets:
+                            try:
+                                await ws.send_text(msg_str)
+                            except Exception:
+                                disconnected.add(ws)
+                        for ws in disconnected:
+                            connected_websockets.remove(ws)
 
                     await asyncio.sleep(sim_step_sleep)
             # Aktualizace odhadovaného uběhlého času
@@ -802,7 +799,7 @@ async def main_loop():
     while True:
         if current_config['playback_state'] == 'idle' or not current_config.get('year'):
             # Jsme v idle stavu, nic se nesimuluje, pouze nasloucháme a čekáme na HTTP API
-            time.sleep(1)
+            await asyncio.sleep(1)
             # Pokud HTTP handler nastavil novou konfiguraci (restart_event), tak se cyklus probudí
             if restart_event.is_set():
                 restart_event.clear()
@@ -838,6 +835,17 @@ async def main_loop():
                 await asyncio.sleep(0.1)
 
 
+async def run_server():
+    port = int(os.environ.get('PORT', 8080))
+    print(f"Vytáčení sdíleného FastAPI serveru (REST + WebSocket) na portu {port}...")
+    config = uvicorn.Config(app=app, host="0.0.0.0", port=port, log_level="error")
+    server = uvicorn.Server(config)
+    
+    # Paralelní spuštění jak webového API, tak backendové simulační mašiny ve stejné Asynchronní smyčce
+    await asyncio.gather(
+        server.serve(),
+        main_loop()
+    )
+
 if __name__ == "__main__":
-    threading.Thread(target=run_api_server, daemon=True).start()
-    asyncio.run(main_loop())
+    asyncio.run(run_server())

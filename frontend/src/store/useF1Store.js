@@ -71,17 +71,6 @@ export const useF1Store = create((set, get) => ({
     const { data: lbData } = await supabase.from('leaderboard').select('*').order('position', { ascending: true });
     if (lbData) set({ leaderboard: lbData });
 
-    const { data: telemetryData } = await supabase.from('telemetry').select('*');
-    if (telemetryData) {
-      const initialPositions = {};
-      telemetryData.forEach(t => {
-        if (t.x_pos !== null && t.y_pos !== null) {
-          initialPositions[t.driver_number] = { x: t.x_pos, y: t.y_pos };
-        }
-      });
-      set({ positions: initialPositions });
-    }
-
     get().fetchTrackOutline();
 
     const channels = supabase.channel('custom-all-channel')
@@ -113,32 +102,6 @@ export const useF1Store = create((set, get) => ({
                 : [...state.leaderboard, payload.new];
               newList.sort((a, b) => a.position - b.position);
               return { leaderboard: newList, isLoading: false };
-            });
-          }
-        }
-      )
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'telemetry' },
-        (payload) => {
-          if (payload.eventType === 'DELETE') {
-            set((state) => {
-              const newPositions = { ...state.positions };
-              delete newPositions[payload.old?.driver_number];
-              return { positions: newPositions };
-            });
-            return;
-          }
-          if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
-            const t = payload.new;
-            if (!t) return;
-            set((state) => {
-              const newPosts = { ...state.positions };
-              if (t.x_pos !== null && t.y_pos !== null) {
-                newPosts[t.driver_number] = { x: t.x_pos, y: t.y_pos };
-              }
-              return {
-                positions: newPosts,
-                isLoading: false
-              };
             });
           }
         }

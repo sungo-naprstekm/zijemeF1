@@ -15,8 +15,12 @@ const LiveVisualizer = () => {
   const posCount = useRef(0);
   const timingCount = useRef(0);
 
+  const driversRef = useRef({});
+
   useEffect(() => {
-    const wsUrl = import.meta.env.VITE_LIVE_WS_URL || 'ws://localhost:8081';
+    const renderUrl = import.meta.env.VITE_RENDER_URL || 'http://localhost:8080';
+    const wsUrl = renderUrl.replace(/^http/, 'ws') + '/ws/telemetry';
+    console.log("Connecting WebSocket directly to Backend:", wsUrl);
     wsRef.current = new WebSocket(wsUrl);
 
     wsRef.current.onopen = () => setStatus('connected');
@@ -81,8 +85,10 @@ const LiveVisualizer = () => {
 
     if (!carsData) return;
     
+    let hasNewDriver = false;
+
     setDrivers(prev => {
-      const next = { ...prev };
+      let next = null;
       Object.keys(carsData).forEach(key => {
         const car = carsData[key];
         const driverNum = car.DriverNumber || key;
@@ -94,13 +100,25 @@ const LiveVisualizer = () => {
         
         if (x === undefined || y === undefined) return;
 
-        if (!next[driverNum]) next[driverNum] = { number: driverNum };
-        next[driverNum].x = x;
-        next[driverNum].y = y;
-        next[driverNum].z = z;
+        if (!driversRef.current[driverNum]) {
+            driversRef.current[driverNum] = { number: driverNum };
+            if (!next) next = { ...prev };
+            next[driverNum] = { ...prev[driverNum], number: driverNum };
+            hasNewDriver = true;
+        }
+        
+        driversRef.current[driverNum].x = x;
+        driversRef.current[driverNum].y = y;
+        driversRef.current[driverNum].z = z;
+
+        // Directly modify SVG nodes without React Render Storm
+        const groupEl = document.getElementById(`driver-group-${driverNum}`);
+        if (groupEl) {
+            groupEl.setAttribute("transform", `translate(${x}, ${y})`);
+            groupEl.setAttribute("visibility", "visible");
+        }
       });
-      console.log('POSITIONS PROCESSED. NEXT:', next);
-      return next;
+      return hasNewDriver ? next : prev;
     });
   };
 
@@ -157,12 +175,11 @@ const LiveVisualizer = () => {
     }
   }, [rcmMessages]);
 
-  // Výpočet bounding boxu pro mapu
-  const getBounds = () => {
-    const drvVals = Object.values(drivers).filter(d => d.x !== undefined);
+  // Výpočet bounding boxu pro mapu - Memoizováno, aby se to nepočítalo každý render frame a neskákalo
+  const bounds = React.useMemo(() => {
     const trackVals = trackData || [];
     
-    if (drvVals.length === 0 && trackVals.length === 0) {
+    if (trackVals.length === 0) {
         return { minX: -10000, maxX: 10000, minY: -10000, maxY: 10000 };
     }
     
@@ -170,27 +187,16 @@ const LiveVisualizer = () => {
         minX: Infinity, maxX: -Infinity, minY: Infinity, maxY: -Infinity 
     };
 
-    const drvBounds = drvVals.reduce((acc, d) => ({
-      minX: Math.min(acc.minX, d.x),
-      maxX: Math.max(acc.maxX, d.x),
-      minY: Math.min(acc.minY, d.y),
-      maxY: Math.max(acc.maxY, d.y),
-    }), initial);
-
     const fullBounds = trackVals.reduce((acc, p) => ({
         minX: Math.min(acc.minX, p.x),
         maxX: Math.max(acc.maxX, p.x),
         minY: Math.min(acc.minY, p.y),
         maxY: Math.max(acc.maxY, p.y),
-    }), drvBounds);
-
-    // Pokud nemáme track a jen málo jezdců, vrátíme aspoň něco
-    if (fullBounds.minX === Infinity) return { minX: -10000, maxX: 10000, minY: -10000, maxY: 10000 };
+    }), initial);
 
     return fullBounds;
-  };
+  }, [trackData]);
 
-  const bounds = getBounds();
   const width = bounds.maxX - bounds.minX;
   const height = bounds.maxY - bounds.minY;
   const padding = Math.max(width, height) * 0.1;
@@ -255,26 +261,36 @@ const LiveVisualizer = () => {
                 />
               )}
 
-              {Object.values(drivers).map(driver => (
-                driver.x !== undefined && (
-                  <g key={driver.number} style={{ transition: 'all 0.1s linear' }}>
+              {Object.values(drivers).map(driver => {
+                const initX = driversRef.current[driver.number]?.x || bounds.minX;
+                const initY = driversRef.current[driver.number]?.y || bounds.minY;
+                const isVisible = driversRef.current[driver.number]?.x !== undefined;
+                
+                return (
+                  <g 
+                    key={driver.number} 
+                    id={`driver-group-${driver.number}`}
+                    style={{ transition: 'transform 0.1s linear' }}
+                    transform={`translate(${initX}, ${initY})`}
+                    visibility={isVisible ? 'visible' : 'hidden'}
+                  >
                     <circle
-                      cx={driver.x}
-                      cy={driver.y}
+                      cx={0}
+                      cy={0}
                       r={Math.max(width, height) * 0.015} 
                       fill={driver.color || '#fff'}
                       opacity="0.3"
                     />
                     <circle
-                      cx={driver.x}
-                      cy={driver.y}
+                      cx={0}
+                      cy={0}
                       r={Math.max(width, height) * 0.007} 
                       fill={driver.color || '#fff'}
                       stroke="#0a0f18"
                       strokeWidth={Math.max(width, height) * 0.002}
                     />
                     {/* Label Badge */}
-                    <g transform={`translate(${driver.x}, ${driver.y - Math.max(width, height) * 0.018})`}>
+                    <g transform={`translate(0, ${-Math.max(width, height) * 0.018})`}>
                        <rect 
                          x={-(Math.max(width, height) * 0.025)}
                          y={-(Math.max(width, height) * 0.014)}
@@ -299,8 +315,8 @@ const LiveVisualizer = () => {
                        </text>
                     </g>
                   </g>
-                )
-              ))}
+                );
+              })}
             </svg>
           )}
         </div>
