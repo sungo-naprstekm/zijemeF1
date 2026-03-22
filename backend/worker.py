@@ -27,10 +27,10 @@ def print_memory_usage(tag=""):
 # Globální stav (sdílený mezi HTTP serverem a asyncio smyčkou)
 # ──────────────────────────────────────────────
 current_config = {
-    "year": 2023, 
-    "round": "Monza",
+    "year": None, 
+    "round": "",
     "start_lap": 1,
-    "playback_state": "paused"
+    "playback_state": "idle"
 }
 restart_event = threading.Event()   # HTTP handler nastaví → main_loop restartuje replay
 
@@ -396,10 +396,12 @@ async def run_replay(year: int, round_name: str):
             add_log(f"Mapový SVG polygon okruhu sestaven a odeslán do databáze ({len(outline_points)} bodů). 🗺️")
         else:
             print("Žádná poziční data pro obrys.")
-            add_log("Žádná poziční data pro obrys tratě. Závod neměřil pingly aut.")
+            add_log("Závod neobsahuje žádná GPS data pro obrys tratě. F1 stream selhal nebo není k dispozici.")
+            supabase.table("track_outline").delete().neq("id", 0).execute()
     except Exception as e:
         print(f"Track outline chyba: {e}")
-        add_log(f"Kritická chyba při generování SVG polygonu: {e}")
+        add_log(f"Kritická chyba při generování SVG polygonu (GPS data nejsou k dispozici): {e}")
+        supabase.table("track_outline").delete().neq("id", 0).execute()
 
     # ──── Smazat starý leaderboard a telemetrii ────
     try:
@@ -448,8 +450,9 @@ async def run_replay(year: int, round_name: str):
 
     # ──── Pre-load pozičních dat pro všech 20 jezdců (RE-2) ────
     print("Načítám poziční data pro všechny jezdce...")
-    add_log("Transformuji telemetrii pro stream (150+ tisíc bodů). To může přidat 5s... ⏳")
     driver_pos_data = {}   # { abbr: DataFrame s X, Y, SessionTime }
+    has_telemetry_error = False
+
     for abbr in drivers_abbr:
         try:
             driver_laps = all_laps.pick_drivers(abbr)
@@ -459,9 +462,15 @@ async def run_replay(year: int, round_name: str):
             if pos is not None and not pos.empty and 'X' in pos.columns and 'Y' in pos.columns:
                 driver_pos_data[abbr] = pos
         except Exception as e:
-            print(f"  Pozice pro {abbr}: přeskočeno ({e})")
+            has_telemetry_error = True
+
+    if has_telemetry_error:
+        add_log("Chybí detailní 2D telemetrická data pro formulky. Pohyb na mapě bude prázdný.")
+    else:
+        add_log("Transformuji telemetrii pro stream (150+ tisíc bodů). To může přidat 5s... ⏳")
+        add_log(f"Stream-ready: Extrahována telemetrie pro {len(driver_pos_data)} aktivních jezdců! 🏎️💨")
+        
     print(f"Poziční data načtena pro {len(driver_pos_data)} jezdců.")
-    add_log(f"Stream-ready: Extrahována telemetrice pro {len(driver_pos_data)} aktivních jezdců! 🏎️💨")
 
 
 
@@ -743,17 +752,37 @@ async def run_replay(year: int, round_name: str):
 # Hlavní smyčka
 # ──────────────────────────────────────────────
 async def main_loop():
+    print("Startuji hlavní smyčku Workeru...")
+    add_log("Backend F1 engine inicializován a čeká na pokyny...")
     while True:
+        if current_config['playback_state'] == 'idle' or not current_config.get('year'):
+            # Jsme v idle stavu, nic se nesimuluje, pouze nasloucháme a čekáme na HTTP API
+            time.sleep(1)
+            # Pokud HTTP handler nastavil novou konfiguraci (restart_event), tak se cyklus probudí
+            if restart_event.is_set():
+                restart_event.clear()
+            continue
+
         # Vymaž restart flag před novým spuštěním
         restart_event.clear()
-        year = current_config["year"]
-        round_name = current_config["round"]
+
+        try:
+            year = current_config['year']
+            round_name = current_config['round']
+        except KeyError:
+            print("Chyba: 'year' nebo 'round' není nastaveno v konfiguraci. Přepínám do idle.")
+            current_config['playback_state'] = 'idle'
+            continue # Zpět na začátek smyčky pro zpracování idle stavu
+
         try:
             await asyncio.to_thread(lambda: None)   # yield smyčce
             await asyncio.get_event_loop().run_in_executor(None, lambda: None)
             await run_replay(year, round_name)
         except Exception as e:
             print(f"Kritická chyba v replay: {e}")
+            add_log(f"Kritická chyba v replay: {e}")
+            # V případě chyby přepneme do idle, aby se zabránilo nekonečnému cyklu chyb
+            current_config["playback_state"] = "idle"
 
         if not restart_event.is_set():
             print("Replay skončil. Automaticky pauzuji před připravením nového startu...")
