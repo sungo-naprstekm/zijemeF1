@@ -492,7 +492,7 @@ async def run_replay(year: int, round_name: str):
             driver_laps = all_laps.pick_drivers(abbr)
             if driver_laps.empty:
                 continue
-            pos = driver_laps.get_pos_data()
+            pos = driver_laps.get_telemetry()
             if pos is not None and not pos.empty and 'X' in pos.columns and 'Y' in pos.columns:
                 driver_pos_data[abbr] = pos
         except Exception as e:
@@ -741,6 +741,12 @@ async def run_replay(year: int, round_name: str):
                                 "id": int(driver_num),
                                 "driver_number": driver_num,
                                 "session_time": round(current_secs, 3),
+                                "speed": int(r.get('Speed', 0)) if not pd.isna(r.get('Speed', 0)) else 0,
+                                "rpm": int(r.get('RPM', 0)) if not pd.isna(r.get('RPM', 0)) else 0,
+                                "gear": int(r.get('nGear', 0)) if not pd.isna(r.get('nGear', 0)) else 0,
+                                "throttle": int(r.get('Throttle', 0)) if not pd.isna(r.get('Throttle', 0)) else 0,
+                                "brake": int(r.get('Brake', 0)) if not pd.isna(r.get('Brake', 0)) else 0,
+                                "drs": int(r.get('DRS', 0)) if not pd.isna(r.get('DRS', 0)) else 0,
                             }
 
                             # Normalizace X/Y telemetrického bodu stejnou rovnicí jako obrys
