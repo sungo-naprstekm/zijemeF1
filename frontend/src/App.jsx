@@ -122,7 +122,7 @@ function App() {
 
       {/* Pravý flexibilní sloupec pro mapu */}
       <div style={styles.mapLayer}>
-        <TrackMap />
+        <LiveVisualizer />
       </div>
 
       <EventLogPanel />

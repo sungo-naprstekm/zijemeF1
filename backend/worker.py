@@ -118,6 +118,13 @@ def set_session(req: SessionRequest):
         current_config['round'] = req.round
         current_config['start_lap'] = req.start_lap
         current_config['playback_state'] = "paused"
+    
+    try:
+        supabase.table("track_outline").delete().eq('id', 1).execute()
+        supabase.table("session_state").update({"flag": "Loading..."}).eq('id', 1).execute()
+    except Exception as e:
+        print(f"Nelze vymazat starou trať: {e}")
+        
     restart_event.set()
     print(f"[API] Nová konfigurace: {req.year} – {req.round} (Od kola: {req.start_lap})")
     add_log(f"Přijat požadavek na spuštění {req.year} - {req.round}.")
@@ -322,8 +329,10 @@ async def run_replay(year: int, round_name: str):
 
     try:
         session_start_time = session.session_start_time
+        session_date = session.date
     except Exception:
-        session_start_time = pd.Timestamp.now()
+        session_start_time = pd.Timedelta(seconds=0)
+        session_date = pd.Timestamp.now()
 
     print("Data načtena. Připravuji vysílání...")
     add_log(f"Konverze FastF1 balíčku {year} {round_name} je hotova ✅")
@@ -752,15 +761,17 @@ async def run_replay(year: int, round_name: str):
                                 payload["y_pos"] = round((float(y_val) - bounds['y_min']) * bounds['scale'] + bounds['y_offset'], 2)
 
                             payloads.append(payload)
+                            payloads.append(payload)
 
-                        except Exception:
+                        except Exception as e:
+                            print(f"Chyba u {abbr}: {e}")
                             continue
-
                     if payloads and connected_websockets:
                         current_real_time_str = ""
                         if 'session_start_time' in locals() and pd.notna(session_start_time) and current_session_time is not None:
                             try:
-                                current_real_time_str = (session_start_time + current_session_time).strftime('%H:%M:%S')
+                                true_time = session_date + (current_session_time - session_start_time)
+                                current_real_time_str = true_time.strftime('%H:%M:%S')
                             except Exception:
                                 pass
 

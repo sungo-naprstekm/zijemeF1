@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Map, List, Activity, Wifi, WifiOff, Users } from 'lucide-react';
+import { useF1Store } from '../store/useF1Store';
 
 const LiveVisualizer = () => {
   const [drivers, setDrivers] = useState({});
@@ -8,8 +9,12 @@ const LiveVisualizer = () => {
   const [lastUpdate, setLastUpdate] = useState(null);
   const [rcmMessages, setRcmMessages] = useState([]);
   const [audioStreams, setAudioStreams] = useState([]);
-  const [trackData, setTrackData] = useState([]);
+  
+  const trackOutline = useF1Store(state => state.trackOutline);
+  const leaderboard = useF1Store(state => state.leaderboard);
+  const trackData = trackOutline?.points || [];
   const wsRef = useRef(null);
+  const rcmRef = useRef(null);
   // React refs for animations (render storm fix)
   const posCount = useRef(0);
   const timingCount = useRef(0);
@@ -48,8 +53,6 @@ const LiveVisualizer = () => {
               const next = [...items, ...prev].slice(0, 10);
               return next;
           });
-        } else if (category === 'TrackData') {
-          setTrackData(data || []);
         }
         
         setLastUpdate(new Date());
@@ -65,19 +68,22 @@ const LiveVisualizer = () => {
 
   const processPositions = (data) => {
     posCount.current++;
-    let hasNewDriver = false;
 
     setDrivers(prev => {
+      let hasNewDriver = false;
       let next = null;
 
       const processCar = (driverNum, x, y, z) => {
         if (x === undefined || y === undefined || x === null || y === null) return;
 
+        if (!prev[driverNum] && !(next && next[driverNum])) {
+            if (!next) next = { ...prev };
+            next[driverNum] = { number: driverNum };
+            hasNewDriver = true;
+        }
+        
         if (!driversRef.current[driverNum]) {
             driversRef.current[driverNum] = { number: driverNum };
-            if (!next) next = { ...prev };
-            next[driverNum] = { ...prev[driverNum], number: driverNum };
-            hasNewDriver = true;
         }
         
         driversRef.current[driverNum].x = x;
@@ -229,7 +235,7 @@ const LiveVisualizer = () => {
           </div>
           <div style={styles.divider}></div>
           <div style={styles.trackedInfo}>
-            <Users size={14}/> {Object.values(drivers).filter(d => d.x !== undefined).length} TRACKED
+            <Users size={14}/> {Object.values(drivers).length} TRACKED
           </div>
           <div style={styles.divider}></div>
           <div style={styles.timeInfo}>
@@ -245,7 +251,7 @@ const LiveVisualizer = () => {
             <Map size={12} color="#60a5fa" /> Live Track Radar
           </div>
           
-          {Object.values(drivers).filter(d => d.x !== undefined).length === 0 ? (
+          {Object.values(drivers).length === 0 ? (
             <div style={{...styles.loadingContainer, zIndex: 9999}}>
               <div style={styles.spinner}>
                 <div style={styles.spinnerInner}></div>
@@ -274,6 +280,10 @@ const LiveVisualizer = () => {
                 const initY = driversRef.current[driver.number]?.y || bounds.minY;
                 const isVisible = driversRef.current[driver.number]?.x !== undefined;
                 
+                const lbEntry = leaderboard?.find(l => l.driver_number === driver.number);
+                const dotColor = lbEntry?.team_color || driver.color || '#fff';
+                const labelName = lbEntry?.broadcast_name || driver.name || driver.number;
+                
                 return (
                   <g 
                     key={driver.number} 
@@ -286,14 +296,14 @@ const LiveVisualizer = () => {
                       cx={0}
                       cy={0}
                       r={Math.max(width, height) * 0.015} 
-                      fill={driver.color || '#fff'}
+                      fill={dotColor}
                       opacity="0.3"
                     />
                     <circle
                       cx={0}
                       cy={0}
                       r={Math.max(width, height) * 0.007} 
-                      fill={driver.color || '#fff'}
+                      fill={dotColor}
                       stroke="#0a0f18"
                       strokeWidth={Math.max(width, height) * 0.002}
                     />
@@ -306,7 +316,7 @@ const LiveVisualizer = () => {
                          height={Math.max(width, height) * 0.016}
                          rx={Math.max(width, height) * 0.003}
                          fill="rgba(10, 15, 24, 0.85)"
-                         stroke={driver.color || 'rgba(255,255,255,0.2)'}
+                         stroke={dotColor}
                          strokeWidth={Math.max(width, height) * 0.0008}
                        />
                        <text
@@ -319,7 +329,7 @@ const LiveVisualizer = () => {
                          fontWeight="900"
                          style={{ pointerEvents: 'none', userSelect: 'none', textShadow: '0 2px 4px rgba(0,0,0,0.5)' }}
                        >
-                         {driver.name || driver.number}
+                         {labelName}
                        </text>
                     </g>
                   </g>
@@ -327,89 +337,6 @@ const LiveVisualizer = () => {
               })}
             </svg>
           )}
-        </div>
-
-        {/* Timing Table */}
-        <div style={styles.tableContainer}>
-          <div style={styles.tableHeaderBar}>
-            <div style={styles.tableTitle}>
-              <List size={14} color="#ef4444" /> Timing Tower
-            </div>
-            <div style={styles.tableBadge}>
-              Live Interval
-            </div>
-          </div>
-          
-          <div style={styles.tableScrollArea}>
-            <table style={styles.table}>
-              <thead style={styles.tableHead}>
-                <tr>
-                  <th style={{...styles.th, textAlign: 'center', width: '40px'}}>P</th>
-                  <th style={styles.th}>DRIVER</th>
-                  <th style={{...styles.th, textAlign: 'center', width: '56px'}}>S1</th>
-                  <th style={{...styles.th, textAlign: 'center', width: '56px'}}>S2</th>
-                  <th style={{...styles.th, textAlign: 'center', width: '56px'}}>S3</th>
-                  <th style={{...styles.th, textAlign: 'right'}}>GAP</th>
-                </tr>
-              </thead>
-              <tbody>
-                {Object.values(drivers)
-                  .sort((a, b) => (a.gap || '99:99').localeCompare(b.gap || '99:99'))
-                  .map((driver, idx) => (
-                  <tr key={driver.number} style={styles.tr}>
-                    <td style={{...styles.td, textAlign: 'center', color: 'rgba(255,255,255,0.5)', fontWeight: 900}}>{idx + 1}</td>
-                    <td style={styles.td}>
-                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                         <div style={{ width: '4px', height: '16px', borderRadius: '2px', backgroundColor: driver.color || '#333', boxShadow: `0 0 5px ${driver.color || '#333'}` }}></div>
-                         <span style={{ fontWeight: 900, fontSize: '14px', color: '#fff' }}>{driver.name || driver.number}</span>
-                         <span style={{ fontSize: '10px', padding: '1px 4px', backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: '4px', color: 'rgba(255,255,255,0.8)', fontWeight: 'bold' }}>{driver.number}</span>
-                       </div>
-                       <div style={{ fontSize: '9px', color: 'rgba(255,255,255,0.5)', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.1em', marginTop: '4px', marginLeft: '12px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '120px' }}>
-                         {driver.team || '---'}
-                       </div>
-                    </td>
-                    
-                    {/* Sectors */}
-                    {['0', '1', '2'].map(secIdx => {
-                      const sec = driver.sectors?.[secIdx];
-                      const isOverallFastest = sec?.OverallFastest;
-                      const isPersonalFastest = sec?.PersonalFastest;
-                      
-                      let color = 'rgba(255,255,255,0.3)';
-                      let textShadow = 'none';
-                      let fontWeight = 'normal';
-                      
-                      if (isOverallFastest) { color = '#e879f9'; fontWeight = 'bold'; textShadow = '0 0 4px rgba(232,121,249,0.5)'; }
-                      else if (isPersonalFastest) { color = '#34d399'; fontWeight = 'bold'; textShadow = '0 0 4px rgba(52,211,153,0.5)'; }
-                      else if (sec?.Value) { color = 'rgba(250, 204, 21, 0.8)'; }
-                      
-                      return (
-                        <td key={secIdx} style={{...styles.td, textAlign: 'center', fontFamily: 'monospace', fontSize: '11px', color, fontWeight, textShadow}}>
-                          {sec?.Value || '--.--'}
-                        </td>
-                      )
-                    })}
-                    
-                    <td style={{...styles.td, textAlign: 'right'}}>
-                        <div style={styles.gapBadge}>
-                           {driver.gap || '---'}
-                        </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            
-            {/* Table Loading State */}
-            {Object.values(drivers).length === 0 && (
-              <div style={styles.tableLoadingOverlay}>
-                 <Activity size={24} color="rgba(255,255,255,0.2)" style={{marginBottom: '16px'}} />
-                 <span style={{fontSize: '10px', fontWeight: 900, letterSpacing: '0.1em', uppercase: 'true', color: 'rgba(255,255,255,0.3)'}}>
-                    Waiting for telemetry...
-                 </span>
-              </div>
-            )}
-          </div>
         </div>
       </div>
 
@@ -561,9 +488,8 @@ const styles = {
         textShadow: '0 0 5px rgba(52,211,153,0.3)'
     },
     mainGrid: {
-        display: 'grid',
-        gridTemplateColumns: 'minmax(0, 2fr) minmax(0, 1fr)',
-        gap: '24px',
+        display: 'flex',
+        flexDirection: 'column',
         flex: 1,
         minHeight: 0
     },
