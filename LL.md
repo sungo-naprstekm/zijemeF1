@@ -60,3 +60,23 @@
 - **Příčina:** Uvnitř metody `_process_payload` docházelo k re-asignaci globálního seznamu `rcm_history = rcm_history[-20:]`. Python v takovém případě považuje proměnnou za lokální pro celou metodu, což vedlo k chybě při pokusu o `append` ještě před touto asignací.
 - **Odstranění:** Do metody `_process_payload` bylo přidáno `global rcm_history`.
 - **Ponaučení pro příště:** Pokud v metodě třídy přistupuji k modulové (globální) proměnné a zároveň ji v téže metodě chci přepsat (rebind jména), musím ji explicitně deklarovat jako `global`. To platí i pro mutace typu `var = var + something`.
+
+## Architektura - Falešná asynchronnost a Latence v Pythonu (asyncio + I/O)
+- **Datum:** 22. března 2026
+- **Symptom:** Během 1:1 playbacku se cyklus postupně zpožďuje a "klouže" proti reálnému času.
+- **Příčina:** Backend `worker.py` deklaroval smyčku jako `async def`, ale uvnitř blokoval event loop skrze synchronní instrukce: `time.sleep()` a synchronní SQL dotazy na databázi `supabase.execute()`. To zcela zničilo latenci – každý propis do databáze čekající síť narušil interní chronometráž.
+- **Odstranění:** Nahrazení `time.sleep()` nativním `await asyncio.sleep()`. Jakýkoli blokující I/O síťový paket (zápis telemetrie) byl zabalen na odeslání do asynchronní "fire-and-forget" úlohy v separátním vlákně: `asyncio.create_task(asyncio.to_thread(_))`. Zároveň byly smazány falešné yield event-loop leaky `run_in_executor(None, lambda: None)`.
+- **Ponaučení pro příště:** V `async` funkcích nikdy nesmím zadržovat blok pomocí `time.sleep()` a nikdy nedělat synchronní HTTP requesty (na DB/externí API) do hlavní event-loop smyčky. Vede to k zamrznutí samotné podstaty asynchronnosti.
+
+## Architektura - Ignorování Vláknové Bezpečnosti u WebServerů (Thread Safety)
+- **Datum:** 22. března 2026
+- **Symptom:** Teoretické nekonzistentní manipulace logů nebo proměnných z frontendu.
+- **Příčina:** Backend sdílel globální proměnné (`current_config`, `app_logs`) do `http.server` HTTP vlákna API a paralelně běžící asynchronní smyčky bez zámků.
+- **Odstranění:** Vybudován globální chránič modifikací `state_lock = threading.Lock()`. Od nynějška každé čtení a zápis, mutace configu nebo logů spadá pod exkluzivní tělo `with state_lock:`.
+- **Ponaučení pro příště:** Přestože Python disponuje ochranou GIL, manipulovat sdíleným dictem nebo lists z více procesních vláken bez použití `Threading.Lock()` je nebezpečný anti-pattern.
+
+## Chyby logiky, Mikromanagement paměti
+- **Datum:** 22. března 2026
+- **NameError a Crashe:** Smyčka obsahovala volání proměnné `SIM_LAP_DURATION`, jež vůbec nebyla definována = vyvrzení chyby a zamrznutí fallbackové fallback vteřiny simulátoru. Opraveno exaktním doplněním fixní relaxace `await asyncio.sleep(2)`.
+- **Pandas Data-mismatch Masking:** Místo provádění prázdného fallbacku `get('Lap', pd.Series()) <= current_lap` (kdy generování prázdné pd.Series nad nepoměrně velkým Dataframem bez varování hodí logický `ValueError` mismatch délky boolean masky), byla zavedena řádově bezpečnější nativ kontrola `if 'Lap' in ...columns:`.
+- **Použití `locals()` jako Anti-Pattern:** Analýza a podmínkování na základě vnitřního slovníku interpreteru `if 'current_track_temp' in locals():` je špinavou programovací technikou; promptně nahrazeno inicializací na bezpečný `None`. Navíc bylo zrušeno vnucování Garbage Collection (`del session` / `gc.collect()`), protože odchod z iterace a scope obslouží uvolnění velkých dat Python samostatně.

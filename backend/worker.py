@@ -33,16 +33,42 @@ current_config = {
     "playback_state": "idle"
 }
 restart_event = threading.Event()   # HTTP handler nastaví → main_loop restartuje replay
+state_lock = threading.Lock()
 
 app_logs = []
 
 def add_log(msg):
     t = time.strftime("%H:%M:%S")
     log_obj = {"id": time.time(), "time": t, "msg": msg}
-    app_logs.insert(0, log_obj)
-    if len(app_logs) > 500:
-        app_logs.pop()
+    with state_lock:
+        app_logs.insert(0, log_obj)
+        if len(app_logs) > 500:
+            app_logs.pop()
     print(f"LOG: {msg}")
+
+def fire_and_forget_upsert(table, payload):
+    try:
+        supabase.table(table).upsert(payload).execute()
+    except Exception as e:
+        print(f"Chyba asynchronniho upsertu ({table}): {e}")
+
+# ──────────────────────────────────────────────
+# Helper functions for API
+# ──────────────────────────────────────────────
+def get_races_for_year(year):
+    try:
+        schedule = fastf1.get_event_schedule(year, include_testing=False)
+        today = date.today()
+        # Vrátit pouze odjeté závody (EventDate < dnes)
+        past = schedule[pd.to_datetime(schedule['EventDate']).dt.date < today]
+        races = [
+            {"round": int(row['RoundNumber']), "name": row['EventName'], "country": row['Country']}
+            for _, row in past.iterrows()
+            if row.get('EventFormat', '') != 'testing'
+        ]
+        return {"year": year, "races": races}
+    except Exception as e:
+        return {"error": str(e)}
 
 # ──────────────────────────────────────────────
 # HTTP API server pro Render.com (Free Web Service)
@@ -70,43 +96,39 @@ class ApiHandler(BaseHTTPRequestHandler):
             self._send_json(200, {"status": "ALIVE", "config": current_config})
 
         elif parsed.path == '/current-session':
-            self._send_json(200, current_config)
+            with state_lock:
+                config_copy = current_config.copy()
+            self._send_json(200, config_copy)
 
         elif parsed.path == '/logs':
-            self._send_json(200, {"logs": app_logs})
+            with state_lock:
+                logs_copy = list(app_logs)
+            self._send_json(200, {"logs": logs_copy})
 
         elif parsed.path == '/schedule':
             params = parse_qs(parsed.query)
             year = int(params.get('year', [2023])[0])
-            try:
-                schedule = fastf1.get_event_schedule(year, include_testing=False)
-                today = date.today()
-                # Vrátit pouze odjeté závody (EventDate < dnes)
-                past = schedule[pd.to_datetime(schedule['EventDate']).dt.date < today]
-                races = [
-                    {"round": int(row['RoundNumber']), "name": row['EventName'], "country": row['Country']}
-                    for _, row in past.iterrows()
-                    if row.get('EventFormat', '') != 'testing'
-                ]
-                self._send_json(200, {"year": year, "races": races})
-            except Exception as e:
-                self._send_json(500, {"error": str(e)})
+            races = get_races_for_year(year)
+            self._send_json(200, races)
 
         else:
             self._send_json(404, {"error": "Not found"})
 
     def do_POST(self):
         if self.path == '/set-session':
-            length = int(self.headers.get('Content-Length', 0))
-            body = json.loads(self.rfile.read(length) or b'{}')
-            year = int(body.get('year', current_config['year']))
-            round_name = body.get('round', current_config['round'])
-            start_lap = int(body.get('start_lap', 1))
-
-            current_config['year'] = year
-            current_config['round'] = round_name
-            current_config['start_lap'] = start_lap
-            current_config['playback_state'] = "paused"
+            content_length = int(self.headers['Content-Length'])
+            post_data = self.rfile.read(content_length)
+            req = json.loads(post_data.decode('utf-8'))
+            
+            year = req.get('year')
+            round_name = req.get('round')
+            start_lap = req.get('start_lap', 1)
+            
+            with state_lock:
+                current_config['year'] = year
+                current_config['round'] = round_name
+                current_config['start_lap'] = start_lap
+                current_config['playback_state'] = "paused"
             
             restart_event.set()   # Signál pro main_loop
             print(f"[API] Nová konfigurace: {year} – {round_name} (Od kola: {start_lap})")
@@ -114,12 +136,16 @@ class ApiHandler(BaseHTTPRequestHandler):
             self._send_json(200, {"status": "ok", "config": current_config})
         
         elif self.path == '/playback':
-            length = int(self.headers.get('Content-Length', 0))
-            body = json.loads(self.rfile.read(length) or b'{}')
-            action = body.get('action')
+            content_length = int(self.headers['Content-Length'])
+            post_data = self.rfile.read(content_length)
+            req = json.loads(post_data.decode('utf-8'))
+            action = req.get('action')
+            
             if action in ['play', 'pause']:
-                current_config['playback_state'] = action
-                print(f"[API] Playback state: {action}")
+                with state_lock:
+                    current_config['playback_state'] = action
+                print(f"[API] Playback state změněn na: {action}")
+                add_log(f"Uživatel změnil simulaci na {action}.")
                 self._send_json(200, {"status": "ok", "state": action})
             else:
                 self._send_json(400, {"error": "Invalid action"})
@@ -254,29 +280,31 @@ def parse_flag_from_messages(race_control_msgs, current_lap):
 
     # Filtrujeme zprávy relevantní do aktuálního kola (včetně)
     # RaceControlMessages mají sloupec 'Lap' (int) a 'Category' + 'Message'
-    relevant = race_control_msgs[race_control_msgs.get('Lap', pd.Series(dtype=int)) <= current_lap]
-    if relevant.empty:
-        return "Green"
+    if 'Lap' in race_control_msgs.columns:
+        relevant = race_control_msgs[race_control_msgs['Lap'] <= current_lap]
+    else:
+        relevant = pd.DataFrame()
+        
+    flag_val = "Green"
+    if not relevant.empty:
+        # Procházíme zprávy od nejnovější
+        for _, msg in relevant.iterrows():
+            category = str(msg.get('Category', '')).lower()
+            message = str(msg.get('Message', '')).lower()
 
-    # Procházíme zprávy od nejnovější
-    flag = "Green"
-    for _, msg in relevant.iterrows():
-        category = str(msg.get('Category', '')).lower()
-        message = str(msg.get('Message', '')).lower()
+            if 'red flag' in message or category == 'red':
+                flag_val = "Red"
+            elif 'safety car' in message and 'virtual' not in message:
+                if 'in this lap' in message or 'deployed' in message or 'safety car' in category:
+                    flag_val = "SC"
+            elif 'virtual safety car' in message or 'vsc' in message.lower():
+                flag_val = "VSC"
+            elif 'green' in message and ('light' in message or 'flag' in message or 'clear' in message):
+                flag_val = "Green"
+            elif 'chequered' in message or 'finish' in message:
+                flag_val = "Chequered"
 
-        if 'red flag' in message or category == 'red':
-            flag = "Red"
-        elif 'safety car' in message and 'virtual' not in message:
-            if 'in this lap' in message or 'deployed' in message or 'safety car' in category:
-                flag = "SC"
-        elif 'virtual safety car' in message or 'vsc' in message.lower():
-            flag = "VSC"
-        elif 'green' in message and ('light' in message or 'flag' in message or 'clear' in message):
-            flag = "Green"
-        elif 'chequered' in message or 'finish' in message:
-            flag = "Chequered"
-
-    return flag
+    return flag_val
 
 
 # ──────────────────────────────────────────────
@@ -321,6 +349,7 @@ async def run_replay(year: int, round_name: str):
 
     total_laps = int(all_laps['LapNumber'].max())
     print(f"Celkem kol: {total_laps}")
+    laps_list = sorted(all_laps['LapNumber'].unique())
 
     # ──── Race Control Messages (pro vlajky) ────
     race_control_msgs = None
@@ -429,7 +458,9 @@ async def run_replay(year: int, round_name: str):
             "in_pit": False
         })
     if leaderboard_inserts:
-        supabase.table("leaderboard").insert(leaderboard_inserts).execute()
+        asyncio.create_task(asyncio.to_thread(
+            fire_and_forget_upsert, "leaderboard", leaderboard_inserts
+        ))
         print(f"Počáteční leaderboard uložen ({len(leaderboard_inserts)} jezdců).")
 
     # ──── Počáteční session state ────
@@ -439,14 +470,17 @@ async def run_replay(year: int, round_name: str):
         initial_track_temp = float(weather_data.iloc[0].get('TrackTemp', 0))
         initial_air_temp = float(weather_data.iloc[0].get('AirTemp', 0))
 
-    supabase.table("session_state").upsert({
-        "id": 1,
-        "flag": "Green",
-        "remaining_laps": total_laps,
-        "current_lap": 1,
-        "track_temp": initial_track_temp,
-        "air_temp": initial_air_temp
-    }).execute()
+    asyncio.create_task(asyncio.to_thread(
+        fire_and_forget_upsert, "session_state", {
+            "id": 1,
+            "flag": "Green",
+            "remaining_laps": total_laps,
+            "current_lap": 1,
+            "track_temp": initial_track_temp,
+            "air_temp": initial_air_temp,
+            "total_laps": total_laps
+        }
+    ))
 
     # ──── Pre-load pozičních dat pro všech 20 jezdců (RE-2) ────
     print("Načítám poziční data pro všechny jezdce...")
@@ -532,17 +566,26 @@ async def run_replay(year: int, round_name: str):
     driver_fastest_lap = {}
     driver_fastest_lap_secs = {}
 
-    for current_lap in range(start_lap, total_laps + 1):
-        if restart_event.is_set():
-            print("Zastaven replay – nová konfigurace požadována.")
-            break
+    add_log(f"Stream povolen od kola {start_lap} ze {len(laps_list)} okruhů celkem.")
+    
+    current_track_temp = None
+    current_air_temp = None
+    simulated_time = pd.Timedelta(seconds=0) # Track simulated time for weather lookup
 
-        # Zastavení dokud není "playing"
-        while current_config.get("playback_state") == "paused":
+    for current_lap in laps_list:
+        if current_lap < start_lap:
+            continue
+            
+        # ──── Blokování pauzou z frontendu ────
+        with state_lock:
+            state = current_config.get("playback_state")
+        while state == "paused":
+            await asyncio.sleep(0.5)
             if restart_event.is_set():
-                print("Zastaven replay během pauzy.")
-                break
-            time.sleep(0.5)
+                print("Replay přerušen během pauzy.")
+                return
+            with state_lock:
+                state = current_config.get("playback_state")
 
         if restart_event.is_set():
             break
@@ -553,39 +596,33 @@ async def run_replay(year: int, round_name: str):
 
         # ──── RE-3: Session State Update ────
         remaining = max(0, total_laps - current_lap)
-        flag = parse_flag_from_messages(race_control_msgs, current_lap)
+        flag_val = parse_flag_from_messages(race_control_msgs, current_lap)
 
         # Teploty: nejbližší weather záznam k aktuálnímu kolu
         if weather_data is not None and not weather_data.empty:
             try:
-                # Vezmeme čas half-way přes kolo lídra pro lookup
-                leader_laps = lap_data[lap_data.get('Position', pd.Series()) == 1] if not lap_data.empty else pd.DataFrame()
-                if not leader_laps.empty:
-                    leader_lap = leader_laps.iloc[0]
-                    lap_session_time = leader_lap.get('LapStartTime')
-                    if pd.notna(lap_session_time) and 'Time' in weather_data.columns:
-                        # Najít nejbližší weather záznam
-                        time_diffs = (weather_data['Time'] - lap_session_time).abs()
-                        nearest_idx = time_diffs.idxmin()
-                        nearest_weather = weather_data.loc[nearest_idx]
-                        current_track_temp = float(nearest_weather.get('TrackTemp', current_track_temp))
-                        current_air_temp = float(nearest_weather.get('AirTemp', current_air_temp))
+                # Find the closest weather data point to the current simulated time
+                time_diffs = (weather_data['Time'] - simulated_time).abs()
+                nearest_idx = time_diffs.idxmin()
+                nearest_weather = weather_data.loc[nearest_idx]
+                current_track_temp = float(nearest_weather.get('TrackTemp', current_track_temp))
+                current_air_temp = float(nearest_weather.get('AirTemp', current_air_temp))
             except Exception as e:
                 pass  # Fallback na poslední známé teploty
 
-        try:
-            supabase.table("session_state").upsert({
-                "id": 1,
-                "flag": flag,
-                "remaining_laps": remaining,
-                "current_lap": current_lap,
-                "track_temp": round(current_track_temp, 1),
-                "air_temp": round(current_air_temp, 1)
-            }).execute()
-        except Exception as e:
-            print(f"  [Kolo {current_lap}] Session state chyba: {e}")
+        # RE-4 Broadcast
+        asyncio.create_task(asyncio.to_thread(
+            fire_and_forget_upsert, "session_state", {
+                "id": 1, 
+                "current_lap": int(current_lap),
+                "total_laps": int(total_laps),
+                "flag": flag_val,
+                "track_temp": round(current_track_temp, 1) if current_track_temp is not None else 0.0,
+                "air_temp": round(current_air_temp, 1) if current_air_temp is not None else 0.0
+            }
+        ))
 
-        print(f"[Kolo {current_lap}/{total_laps}] Flag={flag}, Zbývá={remaining}, Trať={current_track_temp}°C, Jezdců={len(lap_data)}")
+        print(f"[Kolo {current_lap}/{total_laps}] Flag={flag_val}, Zbývá={remaining}, Trať={current_track_temp}°C, Jezdců={len(lap_data)}")
 
         # ──── RE-2: Streamování X/Y pozic pro VŠECHNY jezdce ────
         # Spočítáme session time range pro toto kolo
@@ -609,10 +646,14 @@ async def run_replay(year: int, round_name: str):
                 current_lap_steps = int(lap_seconds * STEPS_PER_SECOND)
                 for step_i in range(current_lap_steps):
                     # --- CHYBĚJÍCÍ KONTROLA PAUZY ---
-                    while current_config.get("playback_state") == "paused":
+                    with state_lock:
+                        state = current_config.get("playback_state")
+                    while state == "paused":
+                        await asyncio.sleep(0.1)
                         if restart_event.is_set():
                             break
-                        time.sleep(0.1)
+                        with state_lock:
+                            state = current_config.get("playback_state")
                     # --------------------------------
                     
                     if restart_event.is_set():
@@ -672,10 +713,9 @@ async def run_replay(year: int, round_name: str):
                             db_obj = {k: v for k, v in st.items() if k not in ('laps_completed', 'last_lap_end_time')}
                             lb_upserts.append(db_obj)
 
-                        try:
-                            supabase.table("leaderboard").upsert(lb_upserts).execute()
-                        except Exception as e:
-                            print(f"  Leaderboard UPSERT chyba (dynamicky): {e}")
+                        asyncio.create_task(asyncio.to_thread(
+                            fire_and_forget_upsert, "leaderboard", lb_upserts
+                        ))
 
                     payloads = []
                     for abbr, pos_df in driver_pos_data.items():
@@ -715,37 +755,36 @@ async def run_replay(year: int, round_name: str):
                             continue
 
                     if payloads:
-                        try:
-                            supabase.table("telemetry").upsert(payloads).execute()
-                        except Exception as e:
-                            print(f"  Telemetry upsert chyba: {e}")
-                            add_log(f"⚠ Telemetry upsert crash: {e}")
+                        asyncio.create_task(asyncio.to_thread(
+                            fire_and_forget_upsert, "telemetry", payloads
+                        ))
 
-                    time.sleep(sim_step_sleep)
+                    await asyncio.sleep(sim_step_sleep)
+            # Aktualizace odhadovaného uběhlého času
+            simulated_time += pd.Timedelta(seconds=lap_seconds)
         else:
-            # Nemáme timing data pro toto kolo – jen počkáme
-            time.sleep(SIM_LAP_DURATION)
+            add_log(f"Kolo {current_lap} nemá platný časový údaj.")
+            await asyncio.sleep(2)
 
     # ──── Konec závodu ────
     if not restart_event.is_set():
-        supabase.table("session_state").upsert({
-            "id": 1,
-            "flag": "Chequered",
-            "remaining_laps": 0,
-            "current_lap": total_laps,
-            "track_temp": round(current_track_temp if 'current_track_temp' in locals() else 0, 1),
-            "air_temp": round(current_air_temp if 'current_air_temp' in locals() else 0, 1)
-        }).execute()
+        asyncio.create_task(asyncio.to_thread(
+            fire_and_forget_upsert, "session_state", {
+                "id": 1,
+                "flag": "Chequered",
+                "remaining_laps": 0,
+                "current_lap": total_laps,
+                "track_temp": round(current_track_temp if current_track_temp is not None else 0.0, 1),
+                "air_temp": round(current_air_temp if current_air_temp is not None else 0.0, 1),
+                "total_laps": total_laps
+            }
+        ))
         print(f"Replay dokončen: {year} {round_name}")
+        add_log("Závod dokončen, posílám šachovnicovou vlajku. 🏁")
 
-    # ──── Explicitní uvolnění paměti (Garbage Collection & Deletion) ────
-    print_memory_usage("Před uvolňováním obřích dat")
-    # Smažeme obří slovníky explicitně
-    del driver_pos_data
-    del all_laps
-    del session
-    gc.collect()
-    print_memory_usage("Po uvolnění obřích dat a session")
+    print("Replay úspěšně uzavřen.")
+    with state_lock:
+        current_config['playback_state'] = 'idle'
 
 
 # ──────────────────────────────────────────────
