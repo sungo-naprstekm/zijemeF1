@@ -20,6 +20,27 @@ export const useF1Store = create((set, get) => ({
     set((state) => ({ eventLogs: [{ id: Date.now() + Math.random(), time, msg }, ...state.eventLogs].slice(0, 50) }));
   },
 
+  fetchBackendLogs: async () => {
+    const renderUrl = import.meta.env.VITE_RENDER_URL;
+    if (!renderUrl) return;
+    try {
+      const res = await fetch(`${renderUrl}/logs`);
+      const data = await res.json();
+      if (data.logs && Array.isArray(data.logs)) {
+        set((state) => {
+          const existingIds = new Set(state.eventLogs.map(log => log.id));
+          const newLogs = data.logs.filter(log => !existingIds.has(log.id));
+          if (newLogs.length > 0) {
+             const combined = [...newLogs, ...state.eventLogs];
+             combined.sort((a,b) => b.id - a.id); // descending order
+             return { eventLogs: combined.slice(0, 100) };
+          }
+          return state;
+        });
+      }
+    } catch(e) {}
+  },
+
   // Vymazání lokálního stavu při přepnutí závodu
   resetForNewSession: () => {
     set({
@@ -141,6 +162,11 @@ export const useF1Store = create((set, get) => ({
       )
       .subscribe();
 
-    return () => supabase.removeChannel(channels);
+    const intervalId = setInterval(() => get().fetchBackendLogs(), 3000);
+
+    return () => {
+       clearInterval(intervalId);
+       supabase.removeChannel(channels);
+    };
   }
 }));

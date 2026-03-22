@@ -34,6 +34,16 @@ current_config = {
 }
 restart_event = threading.Event()   # HTTP handler nastaví → main_loop restartuje replay
 
+app_logs = []
+
+def add_log(msg):
+    t = time.strftime("%H:%M:%S")
+    log_obj = {"id": time.time(), "time": t, "msg": msg}
+    app_logs.insert(0, log_obj)
+    if len(app_logs) > 500:
+        app_logs.pop()
+    print(f"LOG: {msg}")
+
 # ──────────────────────────────────────────────
 # HTTP API server pro Render.com (Free Web Service)
 # ──────────────────────────────────────────────
@@ -61,6 +71,9 @@ class ApiHandler(BaseHTTPRequestHandler):
 
         elif parsed.path == '/current-session':
             self._send_json(200, current_config)
+
+        elif parsed.path == '/logs':
+            self._send_json(200, {"logs": app_logs})
 
         elif parsed.path == '/schedule':
             params = parse_qs(parsed.query)
@@ -97,6 +110,7 @@ class ApiHandler(BaseHTTPRequestHandler):
             
             restart_event.set()   # Signál pro main_loop
             print(f"[API] Nová konfigurace: {year} – {round_name} (Od kola: {start_lap})")
+            add_log(f"Přijat požadavek na spuštění {year} - {round_name}.")
             self._send_json(200, {"status": "ok", "config": current_config})
         
         elif self.path == '/playback':
@@ -276,16 +290,25 @@ async def run_replay(year: int, round_name: str):
     print_memory_usage("Po uvolnění paměti pro nový replay")
 
     print(f"Stahuji data: {year} – {round_name}...")
-    session = fastf1.get_session(year, round_name, 'R')
-    # messages=True pro vlajky (RE-3)
-    # telemetry=True je nutné pro načtení pozičních dat (X, Y) obrysu trati a jezdců
-    session.load(telemetry=True, weather=True, laps=True, messages=True)
+    add_log(f"Inicializuji stažení dat FastF1 pro {year} {round_name}... (Bude trvat 10-60s) ⏳")
+    
+    try:
+        session = fastf1.get_session(year, round_name, 'R')
+        # messages=True pro vlajky (RE-3)
+        # telemetry=True je nutné pro načtení pozičních dat (X, Y) obrysu trati a jezdců
+        session.load(telemetry=True, weather=True, laps=True, messages=True)
+    except Exception as e:
+        add_log(f"Chyba parsování FastF1: {e}")
+        return
+
     print("Data načtena. Připravuji vysílání...")
+    add_log(f"Konverze FastF1 balíčku {year} {round_name} je hotova ✅")
     print_memory_usage("Po načtení dat do FastF1 Session")
 
     results = session.results
     if results.empty:
         print("Žádná data výsledků. Přeskakuji replay.")
+        add_log("Dataset závodu nemá žádné výsledky. Nebylo odjeto? Zastavuji.")
         return
 
     drivers_abbr = list(results['Abbreviation']) if not results.empty else []
@@ -370,17 +393,22 @@ async def run_replay(year: int, round_name: str):
                 "circuit_name": f"{year} {round_name}"
             }).execute()
             print(f"Obrys tratě uložen ({len(outline_points)} bodů).")
+            add_log(f"Mapový SVG polygon okruhu sestaven a odeslán do databáze ({len(outline_points)} bodů). 🗺️")
         else:
             print("Žádná poziční data pro obrys.")
+            add_log("Žádná poziční data pro obrys tratě. Závod neměřil pingly aut.")
     except Exception as e:
         print(f"Track outline chyba: {e}")
+        add_log(f"Kritická chyba při generování SVG polygonu: {e}")
 
     # ──── Smazat starý leaderboard a telemetrii ────
     try:
+        add_log("Čištění zbytků staré Supabase relace...")
         supabase.table("leaderboard").delete().neq("driver_number", "0").execute()
         supabase.table("telemetry").delete().neq("id", 0).execute()
     except Exception as e:
         print("Chyba mazání:", e)
+        add_log(f"Chyba při mazání starých DB dat: {e}")
 
     # ──── Zapsat počáteční leaderboard (startovní rošt = pozice z kola 1) ────
     leaderboard_inserts = []
@@ -420,6 +448,7 @@ async def run_replay(year: int, round_name: str):
 
     # ──── Pre-load pozičních dat pro všech 20 jezdců (RE-2) ────
     print("Načítám poziční data pro všechny jezdce...")
+    add_log("Transformuji telemetrii pro stream (150+ tisíc bodů). To může přidat 5s... ⏳")
     driver_pos_data = {}   # { abbr: DataFrame s X, Y, SessionTime }
     for abbr in drivers_abbr:
         try:
@@ -432,6 +461,7 @@ async def run_replay(year: int, round_name: str):
         except Exception as e:
             print(f"  Pozice pro {abbr}: přeskočeno ({e})")
     print(f"Poziční data načtena pro {len(driver_pos_data)} jezdců.")
+    add_log(f"Stream-ready: Extrahována telemetrice pro {len(driver_pos_data)} aktivních jezdců! 🏎️💨")
 
 
 
@@ -680,6 +710,7 @@ async def run_replay(year: int, round_name: str):
                             supabase.table("telemetry").upsert(payloads).execute()
                         except Exception as e:
                             print(f"  Telemetry upsert chyba: {e}")
+                            add_log(f"⚠ Telemetry upsert crash: {e}")
 
                     time.sleep(sim_step_sleep)
         else:
