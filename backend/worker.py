@@ -320,6 +320,11 @@ async def run_replay(year: int, round_name: str):
         add_log(f"Chyba parsování FastF1: {e}")
         return
 
+    try:
+        session_start_time = session.session_start_time
+    except Exception:
+        session_start_time = pd.Timestamp.now()
+
     print("Data načtena. Připravuji vysílání...")
     add_log(f"Konverze FastF1 balíčku {year} {round_name} je hotova ✅")
     print_memory_usage("Po načtení dat do FastF1 Session")
@@ -752,7 +757,14 @@ async def run_replay(year: int, round_name: str):
                             continue
 
                     if payloads and connected_websockets:
-                        msg_str = json.dumps({"category": "Position", "data": payloads})
+                        current_real_time_str = ""
+                        if 'session_start_time' in locals() and pd.notna(session_start_time) and current_session_time is not None:
+                            try:
+                                current_real_time_str = (session_start_time + current_session_time).strftime('%H:%M:%S')
+                            except Exception:
+                                pass
+
+                        msg_str = json.dumps({"category": "Position", "track_time": current_real_time_str, "data": payloads})
                         disconnected = set()
                         for ws in connected_websockets:
                             try:

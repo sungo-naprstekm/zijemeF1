@@ -10,11 +10,11 @@ const LiveVisualizer = () => {
   const [audioStreams, setAudioStreams] = useState([]);
   const [trackData, setTrackData] = useState([]);
   const wsRef = useRef(null);
-  const rcmRef = useRef(null);
-  
+  // React refs for animations (render storm fix)
   const posCount = useRef(0);
   const timingCount = useRef(0);
 
+  const [trackTime, setTrackTime] = useState("");
   const driversRef = useRef({});
 
   useEffect(() => {
@@ -28,10 +28,11 @@ const LiveVisualizer = () => {
     
     wsRef.current.onmessage = (event) => {
       try {
-        const msg = JSON.parse(event.data);
-        const { category, data } = msg;
+        const payload = JSON.parse(event.data);
+        const { category, data } = payload;
 
         if (category === 'Position.z' || category === 'Position') {
+          if (payload.track_time) setTrackTime(payload.track_time);
           processPositions(data);
         } else if (category === 'TimingData') {
           processTiming(data);
@@ -216,6 +217,12 @@ const LiveVisualizer = () => {
         </div>
         
         <div style={styles.statusBox}>
+          {trackTime && (
+            <div className="absolute top-4 left-4 z-10 pointer-events-none text-white opacity-80 backdrop-blur-sm bg-black/40 px-3 py-1.5 rounded-lg text-sm font-mono tracking-widest border border-white/10 shadow-lg flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span>
+              {trackTime}
+            </div>
+          )}
           <div style={status === 'connected' ? styles.statusConnected : styles.statusDisconnected}>
             {status === 'connected' ? <Wifi size={14} /> : <WifiOff size={14} />}
             {status.toUpperCase()}
