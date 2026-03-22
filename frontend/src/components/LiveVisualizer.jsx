@@ -64,41 +64,13 @@ const LiveVisualizer = () => {
 
   const processPositions = (data) => {
     posCount.current++;
-    // Simulator posílá data přímo v {"Cars": {...}}
-    // SignalR posílá nested structure {"Position": [{"Entries": [{"Cars": {...}}]}]}
-    
-    let carsData = null;
-    if (data?.Cars) {
-        carsData = data.Cars;
-    } else {
-        const posArray = data?.Position || (Array.isArray(data) ? data : null);
-        if (posArray) {
-            posArray.forEach(entry => {
-                if (entry.Entries) {
-                    entry.Entries.forEach(subEntry => {
-                        if (subEntry.Cars) carsData = subEntry.Cars;
-                    });
-                }
-            });
-        }
-    }
-
-    if (!carsData) return;
-    
     let hasNewDriver = false;
 
     setDrivers(prev => {
       let next = null;
-      Object.keys(carsData).forEach(key => {
-        const car = carsData[key];
-        const driverNum = car.DriverNumber || key;
-        
-        // Simulator používá X, Y, Z přímo v objektu auta nebo v Channels
-        const x = car.X !== undefined ? car.X : car.Channels?.['0'];
-        const y = car.Y !== undefined ? car.Y : car.Channels?.['1'];
-        const z = car.Z !== undefined ? car.Z : car.Channels?.['2'];
-        
-        if (x === undefined || y === undefined) return;
+
+      const processCar = (driverNum, x, y, z) => {
+        if (x === undefined || y === undefined || x === null || y === null) return;
 
         if (!driversRef.current[driverNum]) {
             driversRef.current[driverNum] = { number: driverNum };
@@ -111,13 +83,42 @@ const LiveVisualizer = () => {
         driversRef.current[driverNum].y = y;
         driversRef.current[driverNum].z = z;
 
-        // Directly modify SVG nodes without React Render Storm
         const groupEl = document.getElementById(`driver-group-${driverNum}`);
         if (groupEl) {
             groupEl.setAttribute("transform", `translate(${x}, ${y})`);
             groupEl.setAttribute("visibility", "visible");
         }
-      });
+      };
+
+      // 1. Zpracování array formátu z FastAPI backendu
+      if (Array.isArray(data) && data.length > 0 && data[0].driver_number !== undefined) {
+         data.forEach(t => processCar(t.driver_number, t.x_pos, t.y_pos, 0));
+         return hasNewDriver ? next : prev;
+      }
+
+      // 2. Fallback na originální formát ze SignalR a starého LiveSimulatoru
+      let carsData = null;
+      if (data?.Cars) {
+          carsData = data.Cars;
+      } else {
+          const posArray = data?.Position || (Array.isArray(data) ? data : null);
+          if (posArray) {
+              posArray.forEach(entry => {
+                  if (entry.Entries) entry.Entries.forEach(subEntry => { if (subEntry.Cars) carsData = subEntry.Cars; });
+              });
+          }
+      }
+
+      if (carsData) {
+          Object.keys(carsData).forEach(key => {
+            const car = carsData[key];
+            const driverNum = car.DriverNumber || key;
+            const x = car.X !== undefined ? car.X : car.Channels?.['0'];
+            const y = car.Y !== undefined ? car.Y : car.Channels?.['1'];
+            const z = car.Z !== undefined ? car.Z : car.Channels?.['2'];
+            processCar(driverNum, x, y, z);
+          });
+      }
       return hasNewDriver ? next : prev;
     });
   };
