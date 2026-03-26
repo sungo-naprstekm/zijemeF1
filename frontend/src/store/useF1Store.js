@@ -53,6 +53,9 @@ export const useF1Store = create((set, get) => ({
     setTimeout(() => set({ isLoading: false }), 15000); // Sníženo na 15s
   },
 
+  isLive: false,
+  setLiveMode: (active) => set({ isLive: active }),
+
   setSession: (year, round) => {
     set({ currentSession: { year, round } });
     get().resetForNewSession();

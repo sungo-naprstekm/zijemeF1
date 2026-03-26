@@ -12,10 +12,12 @@ import numpy as np
 import fastf1
 from fastf1 import plotting
 from supabase import create_client, Client
+import requests
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import uvicorn
+import live_worker
 
 # ──────────────────────────────────────────────
 # Memory helper
@@ -29,10 +31,11 @@ def print_memory_usage(tag=""):
 # Globální stav (sdílený mezi HTTP API serverem a asyncio smyčkou)
 # ──────────────────────────────────────────────
 current_config = {
-    "year": None, 
+    "year": None,
     "round": "",
     "start_lap": 1,
-    "playback_state": "idle"
+    "playback_state": "idle",
+    "mock_live_override": False  # Pro testování: přepíše is_live_active na True
 }
 restart_event = threading.Event()   # API (uvnitř threadpoolu) nastaví → main_loop restartuje replay
 state_lock = threading.Lock()
@@ -78,6 +81,15 @@ def get_races_for_year(year):
 
 app = FastAPI()
 
+@app.on_event("startup")
+async def startup_event():
+    """Spustí hlavní smyčku jako background task při startu uvicornu."""
+    global main_event_loop
+    main_event_loop = asyncio.get_running_loop()
+    asyncio.create_task(main_loop())
+    print("main_loop() spuštěn jako background task.")
+
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -87,6 +99,22 @@ app.add_middleware(
 )
 
 connected_websockets = set()
+main_event_loop = None
+
+def broadcast_live_data(payload):
+    """Callback pro live_worker. Odesílá data do všech WebSocketů."""
+    if not connected_websockets or not main_event_loop:
+        return
+    
+    msg_str = json.dumps(payload)
+    for ws in list(connected_websockets):
+        try:
+            asyncio.run_coroutine_threadsafe(ws.send_text(msg_str), main_event_loop)
+        except Exception as e:
+            print(f"Live broadcast error: {e}")
+
+# Propojení callbacku
+live_worker.external_broadcast_callback = broadcast_live_data
 
 @app.get("/")
 def read_root():
@@ -101,6 +129,117 @@ def read_current_session():
 def read_logs():
     with state_lock:
         return {"logs": list(app_logs)}
+
+@app.get("/status/live")
+def get_live_status():
+    # Testovací override
+    with state_lock:
+        mock_override = current_config.get("mock_live_override", False)
+    if mock_override:
+        return {
+            "is_live_active": True,
+            "session_info": {
+                "event_name": "MOCK: Japanese Grand Prix",
+                "session_type": "Practice 1",
+                "year": 2026
+            },
+            "_mock": True
+        }
+    try:
+        r = requests.get("https://livetiming.formula1.com/static/SessionInfo.json", timeout=5)
+        # F1 feed vrací UTF-8 BOM - musíme použít utf-8-sig pro správné dekódování
+        data = json.loads(r.content.decode('utf-8-sig'))
+        archive_status = data.get("ArchiveStatus", {}).get("Status", "Generated")
+        is_live = (archive_status == "Generating")
+        return {
+            "is_live_active": is_live,
+            "session_info": {
+                "event_name": data.get("Meeting", {}).get("Name", "Unknown"),
+                "session_type": data.get("Name", data.get("SessionName", "Unknown")),
+                "year": 2026
+            }
+        }
+    except Exception as e:
+        return {"is_live_active": False, "error": str(e)}
+
+@app.post("/toggle-mock-live")
+def toggle_mock_live():
+    """Přepíná testovací live override."""
+    with state_lock:
+        current = current_config.get("mock_live_override", False)
+        current_config["mock_live_override"] = not current
+        new_state = current_config["mock_live_override"]
+    add_log(f"🔧 Mock Live: {'ZAPNUT' if new_state else 'VYPNUT'}")
+    return {"mock_live_override": new_state}
+
+@app.post("/reset-state")
+def reset_state():
+    """Vynuluje session_state a track_outline v Supabase, přepne worker do idle."""
+    with state_lock:
+        current_config['playback_state'] = 'idle'
+        current_config['year'] = None
+        current_config['round'] = ''
+    restart_event.set()
+    try:
+        supabase.table("session_state").update({
+            "flag": "Idle",
+            "current_lap": 0,
+            "total_laps": 0,
+            "track_temp": 0,
+            "air_temp": 0,
+        }).eq('id', 1).execute()
+        supabase.table("track_outline").delete().eq('id', 1).execute()
+        supabase.table("leaderboard").delete().neq('driver_number', '0').execute()
+    except Exception as e:
+        print(f"Reset chyba DB: {e}")
+    add_log("Backend nastaven do idle stavu (reset).")
+    return {"status": "ok", "message": "Stav resetován"}
+
+# ──────────────────────────────────────────────
+# Live mód – spuštění SignalR → Supabase pipeline
+# ──────────────────────────────────────────────
+_live_pipeline_thread = None
+
+@app.post("/start-live")
+async def start_live():
+    """Spustí live SignalR pipeline. Zastaví případný replay."""
+    global _live_pipeline_thread
+
+    # Zastavit replay, přepnout do live
+    with state_lock:
+        current_config['playback_state'] = 'idle'
+        current_config['year'] = None
+        current_config['round'] = ''
+        current_config['is_live'] = True
+    restart_event.set()
+
+    # Spustit SignalR thread pokud ještě neběží
+    if _live_pipeline_thread is None or not _live_pipeline_thread.is_alive():
+        from live_worker import signalr_thread_runner
+        import threading as _t
+        _live_pipeline_thread = _t.Thread(target=signalr_thread_runner, daemon=True)
+        _live_pipeline_thread.start()
+        add_log("🔴 LIVE režim aktivován – připojuji se na F1 SignalR stream...")
+    else:
+        add_log("🔴 LIVE pipeline již běží.")
+
+    return {"status": "ok", "message": "Live pipeline spuštěna"}
+
+@app.post("/stop-live")
+def stop_live():
+    """Přepne worker zpět do idle (SignalR thread doběhne timeout)."""
+    with state_lock:
+        current_config['is_live'] = False
+        current_config['playback_state'] = 'idle'
+    add_log("Live pipeline zastavena (SignalR timeout za ~60s).")
+    return {"status": "ok", "message": "Live pipeline zastavena"}
+
+@app.get("/current-mode")
+def get_current_mode():
+    """Vrátí aktuální mód: live nebo replay."""
+    with state_lock:
+        is_live = current_config.get('is_live', False)
+    return {"mode": "live" if is_live else "replay", "config": current_config}
 
 @app.get("/schedule")
 def read_schedule(year: int = 2023):

@@ -11,8 +11,25 @@ export function StartupModal({ onStartSimulation, onShowStats }) {
   const [loadingRaces, setLoadingRaces] = useState(false);
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState('');
+  const [liveSession, setLiveSession] = useState(null);
 
   const renderUrl = import.meta.env.VITE_RENDER_URL;
+
+  useEffect(() => {
+    if (!renderUrl) return;
+    const checkLiveStatus = async () => {
+      try {
+        const response = await fetch(`${renderUrl}/status/live`);
+        const data = await response.json();
+        if (data.is_live_active) {
+          setLiveSession(data.session_info);
+        }
+      } catch (err) {
+        console.error("Live status check failed", err);
+      }
+    };
+    checkLiveStatus();
+  }, [renderUrl]);
 
   useEffect(() => {
     if (!renderUrl) return;
@@ -58,9 +75,28 @@ export function StartupModal({ onStartSimulation, onShowStats }) {
         body: JSON.stringify({ year, round: selectedRound, start_lap: startLap })
       });
       // The worker pauses the playback automatically inside set-session until play is pressed on dashboard
+      useF1Store.getState().setLiveMode?.(false);
       onStartSimulation();
     } catch {
       setStatus('⚠ Chyba při komunikaci s backendem. Nelze spustit simulaci.');
+      setLoading(false);
+    }
+  };
+
+  const handleStartLive = async () => {
+    if (!liveSession || !renderUrl) return;
+    setLoading(true);
+    setStatus('Připojuji se na F1 Live Stream...');
+    saveToStorage();
+
+    try {
+      await fetch(`${renderUrl}/start-live`, { method: 'POST' });
+      const store = useF1Store.getState();
+      if (store.setLiveMode) store.setLiveMode(true);
+      store.setSession(liveSession.year, liveSession.event_name);
+      onStartSimulation();
+    } catch {
+      setStatus('⚠ Chyba při spuštění Live pipeline.');
       setLoading(false);
     }
   };
@@ -104,8 +140,23 @@ export function StartupModal({ onStartSimulation, onShowStats }) {
         </div>
 
         <div style={styles.buttonGroup}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            {liveSession ? (
+              <button 
+                onClick={handleStartLive}
+                style={{...styles.button, backgroundColor: '#dc2626', color: 'white', border: '2px solid #ef4444', animation: 'pulse 2s infinite', fontWeight: 'bold'}}
+              >
+                🔴 SLEDOVAT LIVE: {liveSession.event_name} ({liveSession.session_type})
+              </button>
+            ) : (
+              <button disabled style={{...styles.button, backgroundColor: '#1f2937', color: '#6b7280', cursor: 'not-allowed'}}>
+                Live session není momentálně k dispozici
+              </button>
+            )}
+          </div>
+
           <button onClick={handleStartSimulation} disabled={loading || !selectedRound || loadingRaces} style={{...styles.button, ...styles.btnPrimary}}>
-            {loading ? '⏳ Načítám Cloud Backend...' : '🏁 ZAHÁJIT SIMULACI ZÁVODU'}
+            {loading ? '⏳ Načítám Cloud Backend...' : '🏁 SLEDOVAT ZE ZÁZNAMU (HISTORIE)'}
           </button>
           
           <button onClick={handleShowStats} disabled={loading || !selectedRound || loadingRaces} style={{...styles.button, ...styles.btnSecondary}}>
