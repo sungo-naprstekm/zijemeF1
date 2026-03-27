@@ -23,8 +23,7 @@ const LiveVisualizer = () => {
   const driversRef = useRef({});
 
   useEffect(() => {
-    const renderUrl = import.meta.env.VITE_RENDER_URL || 'http://localhost:8080';
-    const wsUrl = renderUrl.replace(/^http/, 'ws') + '/ws/telemetry';
+    const wsUrl = import.meta.env.VITE_LIVE_WS_URL || 'ws://localhost:8081';
     console.log("Connecting WebSocket directly to Backend:", wsUrl);
     wsRef.current = new WebSocket(wsUrl);
 
@@ -103,19 +102,21 @@ const LiveVisualizer = () => {
          return hasNewDriver ? next : prev;
       }
 
-      // 2. Fallback na originální formát ze SignalR a starého LiveSimulatoru
-      let carsData = null;
-      if (data?.Cars) {
-          carsData = data.Cars;
-      } else {
-          const posArray = data?.Position || (Array.isArray(data) ? data : null);
-          if (posArray) {
-              posArray.forEach(entry => {
-                  if (entry.Entries) entry.Entries.forEach(subEntry => { if (subEntry.Cars) carsData = subEntry.Cars; });
-              });
-          }
+      // 2. F1 SignalR Position.z formát: { Position: [{ Timestamp, Entries: { driverNum: {X,Y,Z} } }] }
+      if (data?.Position && Array.isArray(data.Position)) {
+          data.Position.forEach(entry => {
+              if (entry.Entries && typeof entry.Entries === 'object') {
+                  Object.keys(entry.Entries).forEach(driverNum => {
+                      const car = entry.Entries[driverNum];
+                      processCar(driverNum, car.X, car.Y, car.Z);
+                  });
+              }
+          });
+          return hasNewDriver ? next : prev;
       }
 
+      // 3. Fallback: { Cars: { driverNum: {X,Y,Z} } }
+      const carsData = data?.Cars || null;
       if (carsData) {
           Object.keys(carsData).forEach(key => {
             const car = carsData[key];

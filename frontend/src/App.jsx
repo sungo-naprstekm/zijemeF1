@@ -19,14 +19,12 @@ function App() {
   const [appMode, setAppMode] = React.useState('menu'); // 'menu', 'simulation', 'statistics'
 
   useEffect(() => {
-    if (isLiveDebug) return;
-
-    // Navážeme WebSocket spojení se Supabase při prvním načtení aplikace
+    // Supabase polling pro track outline a leaderboard — i na live-debug
     const cleanup = initSupabase();
 
     // Automatické probuzení Render backendu (cesta 1 - Free Tier)
     const renderUrl = import.meta.env.VITE_RENDER_URL;
-    if (renderUrl) {
+    if (renderUrl && !isLiveDebug) {
       console.log('Synchronizuji backend...');
       fetch(renderUrl).catch(() => {
         // Ignorujeme chybu (CORS atd.), hlavně že požadavek odešel a Render se probudí
@@ -40,47 +38,46 @@ function App() {
 
   if (isLiveDebug) {
     return (
-      <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', backgroundColor: '#0a0f18', fontFamily: 'var(--font-sans)', overflow: 'hidden' }}>
-        <div style={{ padding: '12px', background: '#0d131f', borderBottom: '1px solid rgba(255,255,255,0.1)', display: 'flex', justifyContent: 'center', gap: '12px', zIndex: 20 }}>
-          <button 
-            onClick={() => setDebugView('visual')}
-            style={{ 
-              padding: '8px 16px', 
-              background: debugView === 'visual' ? '#dc2626' : 'rgba(255,255,255,0.05)',
-              color: debugView === 'visual' ? 'white' : '#94a3b8',
-              border: 'none',
-              borderRadius: '8px',
-              fontSize: '12px',
-              fontWeight: 'bold',
-              letterSpacing: '0.05em',
-              cursor: 'pointer',
-              boxShadow: debugView === 'visual' ? '0 0 15px rgba(220, 38, 38, 0.5)' : 'none',
-              transition: 'all 0.2s'
-            }}
-          >
-            VISUAL MAP
-          </button>
-          <button 
-            onClick={() => setDebugView('raw')}
-            style={{ 
-              padding: '8px 16px', 
-              background: debugView === 'raw' ? '#0284c7' : 'rgba(255,255,255,0.05)',
-              color: debugView === 'raw' ? 'white' : '#94a3b8',
-              border: 'none',
-              borderRadius: '8px',
-              fontSize: '12px',
-              fontWeight: 'bold',
-              letterSpacing: '0.05em',
-              cursor: 'pointer',
-              boxShadow: debugView === 'raw' ? '0 0 15px rgba(2, 132, 199, 0.5)' : 'none',
-              transition: 'all 0.2s'
-            }}
-          >
-            RAW JSON LOG
-          </button>
+      <div style={{ height: '100vh', display: 'flex', backgroundColor: '#0a0f18', fontFamily: 'var(--font-sans)', overflow: 'hidden' }}>
+        {/* Levý panel: Leaderboard */}
+        <div style={{ width: '320px', flexShrink: 0, display: 'flex', flexDirection: 'column', borderRight: '1px solid rgba(255,255,255,0.08)', overflow: 'hidden' }}>
+          <Leaderboard />
         </div>
-        <div style={{ flex: 1, overflow: 'hidden', position: 'relative' }}>
-          {debugView === 'visual' ? <LiveVisualizer /> : <LiveDirectStream />}
+        {/* Pravá část: mapa / raw log */}
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+          <div style={{ padding: '10px', background: '#0d131f', borderBottom: '1px solid rgba(255,255,255,0.1)', display: 'flex', justifyContent: 'center', gap: '12px', zIndex: 20 }}>
+            <button 
+              onClick={() => setDebugView('visual')}
+              style={{ 
+                padding: '8px 16px', 
+                background: debugView === 'visual' ? '#dc2626' : 'rgba(255,255,255,0.05)',
+                color: debugView === 'visual' ? 'white' : '#94a3b8',
+                border: 'none', borderRadius: '8px', fontSize: '12px',
+                fontWeight: 'bold', letterSpacing: '0.05em', cursor: 'pointer',
+                boxShadow: debugView === 'visual' ? '0 0 15px rgba(220, 38, 38, 0.5)' : 'none',
+                transition: 'all 0.2s'
+              }}
+            >
+              VISUAL MAP
+            </button>
+            <button 
+              onClick={() => setDebugView('raw')}
+              style={{ 
+                padding: '8px 16px', 
+                background: debugView === 'raw' ? '#0284c7' : 'rgba(255,255,255,0.05)',
+                color: debugView === 'raw' ? 'white' : '#94a3b8',
+                border: 'none', borderRadius: '8px', fontSize: '12px',
+                fontWeight: 'bold', letterSpacing: '0.05em', cursor: 'pointer',
+                boxShadow: debugView === 'raw' ? '0 0 15px rgba(2, 132, 199, 0.5)' : 'none',
+                transition: 'all 0.2s'
+              }}
+            >
+              RAW JSON LOG
+            </button>
+          </div>
+          <div style={{ flex: 1, overflow: 'hidden', position: 'relative' }}>
+            {debugView === 'visual' ? <LiveVisualizer /> : <LiveDirectStream />}
+          </div>
         </div>
       </div>
     );

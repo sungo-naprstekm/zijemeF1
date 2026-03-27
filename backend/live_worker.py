@@ -48,6 +48,40 @@ loop = None
 message_queue = None
 state_lock = threading.Lock()
 
+# Normalizace souřadnic tratě (raw F1 → 0-1000 SVG prostor)
+_norm_params: Dict[str, float] = {}
+
+def _apply_norm(x: float, y: float):
+    """Přepočte raw F1 souřadnice na normalizované (0-1000)."""
+    p = _norm_params
+    if not p:
+        return x, y
+    nx = (x - p['x_min']) * p['scale'] + p['x_offset']
+    ny = (y - p['y_min']) * p['scale'] + p['y_offset']
+    return round(nx, 2), round(ny, 2)
+
+def _load_norm_params_from_db():
+    """Načte normalizacň parametry z track_outline v Supabase (při startu)."""
+    global _norm_params
+    if not supabase_live:
+        return
+    try:
+        result = supabase_live.table("track_outline").select(
+            "raw_x_min, raw_y_min, raw_scale, raw_x_offset, raw_y_offset"
+        ).eq("id", 1).maybe_single().execute()
+        d = result.data
+        if d and d.get("raw_x_min") is not None:
+            _norm_params = {
+                'x_min': d['raw_x_min'], 'y_min': d['raw_y_min'],
+                'scale': d['raw_scale'], 'x_offset': d['raw_x_offset'],
+                'y_offset': d['raw_y_offset'],
+            }
+            logger.info(f"Norm params načteny z DB: x_min={_norm_params['x_min']:.0f}, scale={_norm_params['scale']:.4f}")
+        else:
+            logger.info("Norm params v DB nejsou (budou nastaveny po načtení tratě).")
+    except Exception as e:
+        logger.warning(f"Nelze načst norm params z DB: {e}")
+
 # Lokální stav live session (průběžně aktualizován ze SignalR dat)
 live_session_state: Dict[str, Any] = {
     "flag": "Green",
@@ -181,35 +215,41 @@ def _parse_timing_data(data: Any):
             if not isinstance(timing, dict):
                 continue
 
-            pos_str = timing.get("Position", "99")
-            try:
-                position = int(pos_str)
-            except (ValueError, TypeError):
-                position = 99
+            # Připravíme payload pouze s daty, která jsou v paketu přítomna
+            payload = {"driver_number": str(driver_num)}
 
-            gap = timing.get("GapToLeader", "")
-            if isinstance(gap, dict):
-                gap = gap.get("Value", "")
+            # Povinné sloupce s defaulty pro případ, že jde o nový záznam (INSERT)
+            payload.setdefault("position", 99)
+            payload.setdefault("broadcast_name", str(driver_num))
+            payload.setdefault("team_color", "#FFFFFF")
 
-            interval = timing.get("IntervalToPositionAhead", {})
-            if isinstance(interval, dict):
-                interval = interval.get("Value", "")
-            elif not isinstance(interval, str):
-                interval = ""
+            if "Position" in timing:
+                try:
+                    payload["position"] = int(timing["Position"])
+                except (ValueError, TypeError):
+                    pass # Necháme 99
 
-            last_lap = timing.get("LastLapTime", {})
-            if isinstance(last_lap, dict):
-                last_lap = last_lap.get("Value", "")
+            if "GapToLeader" in timing:
+                gap = timing["GapToLeader"]
+                if isinstance(gap, dict):
+                    gap = gap.get("Value", "")
+                payload["gap_to_leader"] = str(gap)[:20]
 
-            upserts.append({
-                "driver_number": str(driver_num),
-                "position": position,
-                "gap_to_leader": str(gap)[:20] if gap else "",
-                "interval": str(interval)[:20] if interval else "",
-                "last_lap_time": str(last_lap)[:20] if last_lap else "",
-                "broadcast_name": str(driver_num),  # Fallback, aktualizuje se z DriverList
-                "team_color": "#FFFFFF",  # Fallback pro NOT NULL constraint, přepíše DriverList
-            })
+            if "IntervalToPositionAhead" in timing:
+                interval = timing["IntervalToPositionAhead"]
+                if isinstance(interval, dict):
+                    interval = interval.get("Value", "")
+                payload["interval"] = str(interval)[:20]
+
+            if "LastLapTime" in timing:
+                last_lap = timing["LastLapTime"]
+                if isinstance(last_lap, dict):
+                    last_lap = last_lap.get("Value", "")
+                payload["last_lap_time"] = str(last_lap)[:20]
+
+            # Prázdný objekt (jen driver_number) neposíláme
+            if len(payload) > 1:
+                upserts.append(payload)
 
         if upserts:
             threading.Thread(target=safe_upsert, args=("leaderboard", upserts), daemon=True).start()
@@ -229,12 +269,18 @@ def _parse_driver_list(data: Any):
         for driver_num, info in data.items():
             if not isinstance(info, dict):
                 continue
-            upserts.append({
+            
+            payload = {
                 "driver_number": str(driver_num),
-                "position": 99,
                 "broadcast_name": info.get("Tla", info.get("BroadcastName", str(driver_num))),
-                "team_color": f"#{info.get('TeamColour', 'FFFFFF')}",
-            })
+            }
+            
+            if "TeamColour" in info:
+                payload["team_color"] = f"#{info.get('TeamColour', 'FFFFFF')}"
+            
+            # Position v DriverListu obvykle není, tak ji tu nebudeme vnucovat jako 99, 
+            # pokud tam už v DB nějaká je.
+            upserts.append(payload)
         if upserts:
             threading.Thread(target=safe_upsert, args=("leaderboard", upserts), daemon=True).start()
             _broadcast_to_ws("DriverList", data)
@@ -251,9 +297,11 @@ def _parse_session_info(data: Any):
         if not isinstance(data, dict):
             return
         meeting = data.get("Meeting", {})
+        session = data.get("Session", {})
         event_name = meeting.get("Name", live_session_state.get("event_name", ""))
-        session_type = data.get("Name", live_session_state.get("session_type", ""))
-
+        session_type = data.get("Type", live_session_state.get("session_type", ""))
+        
+        logger.info(f"SignalR SessionInfo: {event_name} - {session_type} (Meeting: {meeting.get('Key')}, Session: {session.get('Key')})")
         with state_lock:
             # Pokud se změnil event_name, resetujeme příznak načtené tratě
             if event_name != live_session_state["event_name"]:
@@ -333,8 +381,20 @@ def _load_and_push_track_outline(event_name: str):
                 "id": 1,
                 "points": outline_points,
                 "circuit_name": f"{year} {event_name}",
+                "raw_x_min": float(x_min),
+                "raw_y_min": float(y_min),
+                "raw_scale": float(scale),
+                "raw_x_offset": float(x_offset),
+                "raw_y_offset": float(y_offset),
             }).execute()
-            logger.info(f"✅ Live: track_outline uložen ({len(outline_points)} bodů)")
+            # Nastavíme globální norm params ihned
+            global _norm_params
+            _norm_params = {
+                'x_min': float(x_min), 'y_min': float(y_min),
+                'scale': float(scale), 'x_offset': float(x_offset),
+                'y_offset': float(y_offset),
+            }
+            logger.info(f"✅ Live: track_outline uložen ({len(outline_points)} bodů), norm params: x_min={x_min:.0f}, y_min={y_min:.0f}, scale={scale:.4f}")
         else:
             logger.warning("⚠ Live: Žádná GPS data pro track_outline")
     except Exception as e:
@@ -501,6 +561,23 @@ class ProxySignalRClient:
             except Exception as e:
                 logger.error(f"Parser {category} selhal: {e}")
 
+        # ── Normalizace pozic před WS broadcastem ──
+        if category in ('Position.z', 'Position') and _norm_params and isinstance(payload, dict):
+            try:
+                for pos_entry in payload.get('Position', []):
+                    entries = pos_entry.get('Entries', {})
+                    if isinstance(entries, dict):
+                        first_car = True
+                        for driver_num, car_data in entries.items():
+                            if isinstance(car_data, dict) and 'X' in car_data and 'Y' in car_data:
+                                car_data['X'], car_data['Y'] = _apply_norm(car_data['X'], car_data['Y'])
+                                if first_car:
+                                    logger.info(f"Normalized car {driver_num}: {car_data['X']}, {car_data['Y']}")
+                                    first_car = False
+                item['data'] = payload
+            except Exception as e:
+                logger.error(f"Position norm error: {e}")
+
         return item
 
     def _on_message(self, msg):
@@ -626,6 +703,9 @@ async def main():
     global loop, message_queue
     loop = asyncio.get_running_loop()
     message_queue = asyncio.Queue()
+
+    # Načtení norm params z DB při startu (pokud existují z předcházejícího běhu)
+    _load_norm_params_from_db()
 
     asyncio.create_task(broadcast_loop())
 
