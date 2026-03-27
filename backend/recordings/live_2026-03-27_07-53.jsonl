@@ -5114,3 +5114,6 @@
 {"ts": 1774595408.835277, "elapsed": 976.784, "category": "SessionData", "raw_compressed": false, "data": {"StatusSeries": {"11": {"Utc": "2026-03-27T07:10:06.851Z", "SessionStatus": "Finalised"}}}}
 {"ts": 1774595410.708632, "elapsed": 978.658, "category": "Heartbeat", "raw_compressed": false, "data": {"Utc": "2026-03-27T07:10:10.7389752Z", "_kf": true}}
 {"ts": 1774595425.789044, "elapsed": 993.738, "category": "Heartbeat", "raw_compressed": false, "data": {"Utc": "2026-03-27T07:10:25.7412884Z", "_kf": true}}
+{"ts": 1774595440.748806, "elapsed": 1008.698, "category": "Heartbeat", "raw_compressed": false, "data": {"Utc": "2026-03-27T07:10:40.7451936Z", "_kf": true}}
+{"ts": 1774595455.714827, "elapsed": 1023.664, "category": "Heartbeat", "raw_compressed": false, "data": {"Utc": "2026-03-27T07:10:55.7499979Z", "_kf": true}}
+{"ts": 1774595468.805677, "elapsed": 1036.755, "category": "RaceControlMessages", "raw_compressed": false, "data": {"Messages": {"37": {"Utc": "2026-03-27T07:11:06", "Category": "Flag", "Flag": "DOUBLE YELLOW", "Scope": "Sector", "Sector": 28, "Message": "DOUBLE YELLOW IN TRACK SECTOR 28"}}}}
